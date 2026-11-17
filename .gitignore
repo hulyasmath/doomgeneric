@@ -10,3 +10,13 @@ Debug/
 Release/
 Build/
 doomgeneric.map
+doomgeneric/build/
+doomgeneric/doomgeneric.data
+doomgeneric/doomgeneric.html
+doomgeneric/doomgeneric.js
+doomgeneric/doomgeneric.wasm
+doomgeneric/doom1.wad
+doomgeneric/freepats/
+doomgeneric/timidity.cfg
+dist/
+node_modules/

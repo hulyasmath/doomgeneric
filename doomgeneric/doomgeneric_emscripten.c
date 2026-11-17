@@ -3,6 +3,7 @@
 #include "doomkeys.h"
 #include "m_argv.h"
 #include "doomgeneric.h"
+#include "zeq_doom.h"
 
 #include <stdio.h>
 #include <unistd.h>
@@ -16,7 +17,7 @@ SDL_Window* window = NULL;
 SDL_Renderer* renderer = NULL;
 SDL_Texture* texture;
 
-#define KEYQUEUE_SIZE 16
+#define KEYQUEUE_SIZE 64
 
 static unsigned short s_KeyQueue[KEYQUEUE_SIZE];
 static unsigned int s_KeyQueueWriteIndex = 0;
@@ -104,15 +105,23 @@ static unsigned char convertToDoomKey(unsigned int key)
   return key;
 }
 
+static void queueDoomKey(int pressed, unsigned char key)
+{
+  unsigned int next = (s_KeyQueueWriteIndex + 1) % KEYQUEUE_SIZE;
+  if (next == s_KeyQueueReadIndex)
+    return;
+  s_KeyQueue[s_KeyQueueWriteIndex] = (pressed << 8) | key;
+  s_KeyQueueWriteIndex = next;
+}
+
 static void addKeyToQueue(int pressed, unsigned int keyCode)
 {
-  unsigned char key = convertToDoomKey(keyCode);
+  queueDoomKey(pressed, convertToDoomKey(keyCode));
+}
 
-  unsigned short keyData = (pressed << 8) | key;
-
-  s_KeyQueue[s_KeyQueueWriteIndex] = keyData;
-  s_KeyQueueWriteIndex++;
-  s_KeyQueueWriteIndex %= KEYQUEUE_SIZE;
+void ZEQ_KeyEvent(int pressed, int key)
+{
+  queueDoomKey(pressed, (unsigned char)key);
 }
 
 static void handleKeyInput()
@@ -150,13 +159,14 @@ void DG_Init()
                             );
 
   // Setup renderer
-  renderer =  SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+  renderer =  SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
   // Clear winow
   SDL_RenderClear( renderer );
   // Render the rect to the screen
   SDL_RenderPresent(renderer);
 
-  texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB888, SDL_TEXTUREACCESS_TARGET, DOOMGENERIC_RESX, DOOMGENERIC_RESY);
+  SDL_RenderSetLogicalSize(renderer, DOOMGENERIC_RESX, DOOMGENERIC_RESY);
+  texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB888, SDL_TEXTUREACCESS_STREAMING, DOOMGENERIC_RESX, DOOMGENERIC_RESY);
 }
 
 void DG_DrawFrame()
@@ -166,6 +176,7 @@ void DG_DrawFrame()
   SDL_RenderClear(renderer);
   SDL_RenderCopy(renderer, texture, NULL, NULL);
   SDL_RenderPresent(renderer);
+  ZEQ_UpdateSnapshot();
 
   handleKeyInput();
 }
