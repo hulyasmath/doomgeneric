@@ -276,6 +276,10 @@ typedef struct mobj_s
 
     // Thing being chased/attacked for tracers.
     struct mobj_s*	tracer;	
+
+    // Zeq phase state travels with projectiles and confirmed hits.
+    int			zeq_phase;
+    int			zeq_phase_hit;
     
 } mobj_t;
 

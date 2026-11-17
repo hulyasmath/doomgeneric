@@ -27,6 +27,7 @@
 #include "p_local.h"
 
 #include "doomstat.h"
+#include "zeq_doom.h"
 
 
 
@@ -141,9 +142,11 @@ void P_CalcHeight (player_t* player)
 void P_MovePlayer (player_t* player)
 {
     ticcmd_t*		cmd;
+    fixed_t		carrier;
 	
     cmd = &player->cmd;
 	
+    carrier = ZEQ_CarrierPermille() * (FRACUNIT / 1000);
     player->mo->angle += (cmd->angleturn<<16);
 
     // Do not let the player control movement
@@ -151,10 +154,10 @@ void P_MovePlayer (player_t* player)
     onground = (player->mo->z <= player->mo->floorz);
 	
     if (cmd->forwardmove && onground)
-	P_Thrust (player, player->mo->angle, cmd->forwardmove*2048);
+	P_Thrust (player, player->mo->angle, FixedMul(cmd->forwardmove*2048, carrier));
     
     if (cmd->sidemove && onground)
-	P_Thrust (player, player->mo->angle-ANG90, cmd->sidemove*2048);
+	P_Thrust (player, player->mo->angle-ANG90, FixedMul(cmd->sidemove*2048, carrier));
 
     if ( (cmd->forwardmove || cmd->sidemove) 
 	 && player->mo->state == &states[S_PLAY] )
