@@ -34,6 +34,7 @@
 #include "sounds.h"
 
 #include "p_pspr.h"
+#include "zeq_doom.h"
 
 #define LOWERSPEED		FRACUNIT*6
 #define RAISESPEED		FRACUNIT*6
@@ -102,7 +103,7 @@ fixed_t		swingy;
 
 void P_CalcSwing (player_t*	player)
 {
-    fixed_t	swing;
+    fixed_t 	swing;
     int		angle;
 	
     // OPTIMIZE: tablify this.
@@ -241,6 +242,7 @@ void P_FireWeapon (player_t* player)
     if (!P_CheckAmmo (player))
 	return;
 	
+    ZEQ_PhaseShot (player);
     P_SetMobjState (player->mo, S_PLAY_ATK1);
     newstate = weaponinfo[player->readyweapon].atkstate;
     P_SetPsprite (player, ps_weapon, newstate);

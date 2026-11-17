@@ -38,6 +38,7 @@
 #include "s_sound.h"
 
 #include "p_inter.h"
+#include "zeq_doom.h"
 
 
 #define BONUSADD	6
@@ -88,7 +89,7 @@ P_GiveAmmo
 	|| gameskill == sk_nightmare)
     {
 	// give double ammo in trainer mode,
-	// you'll need in nightmare
+	// you'll need it in nightmare
 	num <<= 1;
     }
     
@@ -682,7 +683,11 @@ P_KillMobj
     {
 	// count for intermission
 	if (target->flags & MF_COUNTKILL)
-	    source->player->killcount++;	
+	{
+	    source->player->killcount++;
+	    if (target->zeq_phase_hit)
+		ZEQ_PhaseKill (source->player);
+	}
 
 	if (target->player)
 	    source->player->frags[target->player-players]++;
@@ -804,6 +809,22 @@ P_DamageMobj
 	damage >>= 1; 	// take half damage in trainer mode
 		
 
+    // Shots released on the carrier peak deal a deterministic 50% bonus.
+    target->zeq_phase_hit = 0;
+    if (!player && source && source->player && source->player == &players[consoleplayer])
+    {
+	int phase_attack;
+	if (inflictor && inflictor != source)
+	    phase_attack = inflictor->zeq_phase;
+	else if (source->player->readyweapon == wp_bfg)
+	    phase_attack = source->zeq_phase;
+	else
+	    phase_attack = ZEQ_PhaseAttack (source->player);
+	if (phase_attack)
+	    target->zeq_phase_hit = 1;
+	damage = ZEQ_PhaseHit (source->player, damage, phase_attack);
+    }
+
     // Some close combat weapons should not
     // inflict thrust and push the victim out of reach,
     // thus kick away unless using the chainsaw.
@@ -876,6 +897,7 @@ P_DamageMobj
 	    player->health = 0;
 	
 	player->attacker = source;
+	ZEQ_PlayerDamage (player, damage);
 	player->damagecount += damage;	// add damage after armor / invuln
 
 	if (player->damagecount > 100)
