@@ -32,6 +32,7 @@
 #include "s_sound.h"
 
 #include "doomstat.h"
+#include "zeq_doom.h"
 
 
 void G_PlayerReborn (int player);
@@ -1037,6 +1038,9 @@ P_SpawnPlayerMissile
 	S_StartSound (th, th->info->seesound);
 
     th->target = source;
+    th->zeq_phase = ZEQ_PhaseAttack (source->player);
+    if (type == MT_BFG)
+	source->zeq_phase = th->zeq_phase;
     th->angle = an;
     th->momx = FixedMul( th->info->speed,
 			 finecosine[an>>ANGLETOFINESHIFT]);
