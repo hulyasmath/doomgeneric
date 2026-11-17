@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#090d0b">
+  <meta name="description" content="The original Doom engine, upgraded with deterministic Zeq phase combat, a verifiable run ledger, local save capsules, and touch controls.">
+  <title>ZEQ // DOOM PROTOCOL</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23090d0b'/%3E%3Cpath d='M12 14h40L29 50h23' fill='none' stroke='%2336e88f' stroke-width='8'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="zeq.css">
+</head>
+<body>
+<div class="app-shell">
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">ZEQ</span><span class="brand-divider">//</span><span>DOOM PROTOCOL</span></div>
+    <div class="top-actions">
+      <span class="engine-state" id="engine-state"><i></i>BOOTING ENGINE</span>
+      <button type="button" data-open="manual-dialog">MANUAL</button>
+      <button type="button" data-open="ledger-dialog">LEDGER <span id="ledger-count">0</span></button>
+      <button type="button" data-open="settings-dialog">SETTINGS</button>
+    </div>
+  </header>
+
+  <main class="command-deck">
+    <section class="viewport-column" aria-label="Doom game viewport">
+      <div class="screen-frame" id="screen-frame">
+        <canvas id="canvas" tabindex="0" aria-label="Doom game. Use keyboard and mouse, or the touch controls."></canvas>
+        <div class="screen-scan" aria-hidden="true"></div>
+        <div class="game-hud" id="game-hud">
+          <div class="hud-block health"><span>VITALS</span><strong id="hud-health">100</strong><small>%</small></div>
+          <div class="hud-location"><span id="hud-location">E1M1 // HANGAR</span><small id="hud-state">UAC PHOBOS</small></div>
+          <div class="hud-block ammo"><span id="hud-weapon">PISTOL</span><strong id="hud-ammo">50</strong><small id="hud-maxammo">/ 200</small></div>
+        </div>
+        <div class="screen-tools">
+          <button type="button" id="pause-button" aria-label="Pause game">PAUSE</button>
+          <button type="button" id="sound-button" aria-label="Toggle sound">SOUND ON</button>
+          <button type="button" id="fullscreen-button" aria-label="Toggle fullscreen">FULL</button>
+        </div>
+        <div class="phase-flash" id="phase-flash">PHASE LOCK <span>+50% DAMAGE</span></div>
+        <div class="title-screen" id="title-screen">
+          <div class="title-content">
+            <span class="kicker">ORIGINAL ENGINE / ZEQ UPGRADE 01</span>
+            <h1>DOOM<br><em>RECOMPILED.</em></h1>
+            <p>Every demon. Every map. Every frame from doomgeneric—now phase-locked to the 1.287 Hz carrier.</p>
+            <div class="title-actions">
+              <button class="primary-action" type="button" id="start-button" disabled><span>ENTER E1M1</span><small>NEW UAC DEPLOYMENT</small></button>
+              <button class="secondary-action" type="button" id="continue-button" hidden>CONTINUE CAPSULE</button>
+            </div>
+            <div class="boot-progress" id="boot-progress"><span></span></div>
+            <small class="boot-copy" id="boot-copy">LOADING DOOM1.WAD / WEBASSEMBLY</small>
+          </div>
+        </div>
+      </div>
+
+      <div class="carrier-console">
+        <div class="carrier-label"><span>HULYA CARRIER</span><strong>1.287 Hz</strong></div>
+        <div class="phase-track" id="phase-track" aria-label="Carrier phase">
+          <div class="phase-window"></div><div class="phase-cursor" id="phase-cursor"></div>
+        </div>
+        <div class="phase-readout"><span id="phase-value">φ 0.000</span><strong id="phase-status">AWAITING TIC</strong></div>
+      </div>
+
+      <div class="desktop-help"><span><b>WASD</b> MOVE</span><span><b>MOUSE</b> AIM</span><span><b>LMB / CTRL</b> FIRE</span><span><b>SPACE</b> USE</span><span><b>1–7</b> WEAPONS</span><span><b>TAB</b> MAP</span></div>
+    </section>
+
+    <aside class="telemetry" aria-label="Live Zeq telemetry">
+      <section class="telemetry-head"><span class="section-label">LIVE ENGINE STATE</span><strong id="carrier-pulse">R(t) 1.000</strong><small>35 TIC / EXACT INTEGER PHASE</small></section>
+      <section class="stat-grid">
+        <div><span>ARMOR</span><strong id="stat-armor">000</strong></div>
+        <div><span>KILLS</span><strong id="stat-kills">0 / 0</strong></div>
+        <div><span>ZEQOND</span><strong id="stat-zeqond">0</strong></div>
+        <div><span>ITEMS</span><strong id="stat-items">0%</strong></div>
+      </section>
+      <section class="phase-module">
+        <div><span class="section-label">PHASE-LOCKED IMPULSE</span><span class="module-on" id="module-state">ARMED</span></div>
+        <p>Release fire inside the mint window. Confirmed hits deal +50% damage and enter the ledger.</p>
+        <div class="phase-stats"><span><b id="phase-shots">0</b> SHOTS</span><span><b id="phase-hits">0</b> HITS</span><span><b id="phase-kills">0</b> KILLS</span></div>
+      </section>
+      <section class="event-module">
+        <div class="event-title"><span class="section-label">ENGINE EVENT STREAM</span><i>LIVE</i></div>
+        <ol id="event-stream"><li class="empty-event">Waiting for the first Doom tic.</li></ol>
+      </section>
+      <section class="save-module">
+        <span class="section-label">SOVEREIGN SAVE</span>
+        <p>One local Doom save capsule. Export it before clearing browser data.</p>
+        <div><button type="button" id="save-button" disabled>SAVE CAPSULE</button><button type="button" id="export-save-button" disabled>EXPORT</button></div>
+      </section>
+    </aside>
+  </main>
+
+  <footer class="statusbar"><span><i></i> DOOMGENERIC / WASM</span><span id="runtime-detail">640 × 400 · 35 HZ SIMULATION</span><span>LOCAL-FIRST / NO TELEMETRY UPLINK</span></footer>
+</div>
+
+<div class="touch-controls" id="touch-controls" aria-label="Touch game controls">
+  <div class="touch-dpad">
+    <button type="button" data-key="173" aria-label="Move forward">↑</button>
+    <button type="button" data-key="172" aria-label="Turn left">←</button>
+    <button type="button" data-key="175" aria-label="Move backward">↓</button>
+    <button type="button" data-key="174" aria-label="Turn right">→</button>
+  </div>
+  <div class="touch-actions">
+    <button type="button" data-key="9">MAP</button>
+    <button type="button" data-key="162">USE</button>
+    <button class="touch-fire" type="button" data-key="163">FIRE</button>
+  </div>
+</div>
+
+<dialog id="manual-dialog">
+  <div class="dialog-head"><span>FIELD MANUAL / 01</span><button type="button" data-close aria-label="Close manual">CLOSE</button></div>
+  <h2>Rip. Tear. Time the carrier.</h2>
+  <p>This is the original shareware Doom episode running in your browser through doomgeneric. The Zeq layer modifies the engine; it does not replace the game.</p>
+  <div class="manual-grid">
+    <section><h3>MOVEMENT</h3><p><b>WASD / arrows</b> move and turn. Click the viewport to capture the mouse. <b>Alt</b> strafes; <b>Shift</b> runs.</p></section>
+    <section><h3>COMBAT</h3><p><b>Left mouse / Ctrl</b> fires. <b>Space</b> opens doors. <b>1–7</b> select weapons. <b>Tab</b> toggles the automap.</p></section>
+    <section><h3>PHASE LOCK</h3><p>The carrier repeats at 1.287 Hz. Fire when the cursor crosses the mint phase window around φ 0.25 for a deterministic damage bonus.</p></section>
+    <section><h3>LOCAL CAPSULE</h3><p>Save from the telemetry rail. The save stays in this browser and can be exported as a standard Doom .dsg file. No account or cloud sync.</p></section>
+  </div>
+  <p class="fine-print">On touch screens, use the directional pad and action buttons. Drag the right side of the viewport to turn. Escape opens Doom’s original menu.</p>
+</dialog>
+
+<dialog id="ledger-dialog">
+  <div class="dialog-head"><span>RUN LEDGER / SHA-256 CHAIN</span><button type="button" data-close aria-label="Close ledger">CLOSE</button></div>
+  <h2>Nothing vanishes between tics.</h2>
+  <p>Discrete engine events are chained locally. Verification recomputes every hash; it proves ledger integrity, not that a run was competitively legitimate.</p>
+  <div class="ledger-proof"><span>CHAIN TIP</span><code id="chain-tip">NO EVENTS</code><strong id="ledger-verdict">UNVERIFIED</strong></div>
+  <ol class="ledger-list" id="ledger-list"><li>No engine events recorded yet.</li></ol>
+  <div class="dialog-actions"><button type="button" id="verify-ledger">VERIFY CHAIN</button><button class="primary-small" type="button" id="download-ledger">DOWNLOAD JSON</button></div>
+</dialog>
+
+<dialog id="settings-dialog">
+  <div class="dialog-head"><span>LOCAL CONFIGURATION</span><button type="button" data-close aria-label="Close settings">CLOSE</button></div>
+  <h2>Engine protocols.</h2>
+  <label class="setting-row"><span><b>PHASE DAMAGE</b><small>Enable the engine-native +50% impulse.</small></span><input type="checkbox" id="phase-toggle" checked></label>
+  <label class="setting-row"><span><b>CRT SCANLINES</b><small>Display-only overlay; Doom pixels remain unchanged.</small></span><input type="checkbox" id="scan-toggle" checked></label>
+  <label class="setting-slider"><span>MOUSE SENSITIVITY <output id="sensitivity-value">1.0×</output></span><input type="range" id="sensitivity" min="0.4" max="2" step="0.1" value="1"></label>
+  <p class="fine-print">Settings and the current save capsule are stored only in this browser. The shareware WAD is unmodified id Software game data.</p>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="zeq.js"></script>
+{{{ SCRIPT }}}
+</body>
+</html>
