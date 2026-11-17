@@ -210,6 +210,10 @@ function queueEngineEvent(event) {
     safeSet(LEDGER_KEY, JSON.stringify(ledger));
     updateLedger();
     addEventToStream(record);
+    if (sidecarOn) {
+      const bridge = sidecarBridge();
+      if (bridge) bridge.event({ type: record.type, tic: record.tic, phase: record.phase, value: record.value });
+    }
     if (record.type === 1) {
       $("phase-flash").classList.add("visible");
       clearTimeout(flashTimer);
@@ -266,6 +270,34 @@ function restoreLedger() {
   updateLedger();
 }
 
+/* --- Optional local sidecar bridge (zeq-game-sdk) ----------------------
+ * Mirrors engine telemetry to a user-run zeq-kernel over JSON-RPC/WS.
+ * Strictly optional: when disabled or unreachable the game is unchanged. */
+let sidecarOn = false;
+let lastSidecarSnapshot = 0;
+function sidecarBridge() { return window.ZeqSDK ? window.ZeqSDK.bridge : null; }
+function updateSidecarStatus(state) {
+  const el = $("sidecar-status");
+  if (el) el.textContent = state === "online" ? "linked" : state === "connecting" ? "connecting…" : "offline";
+}
+function applySidecar(on) {
+  sidecarOn = on;
+  const bridge = sidecarBridge();
+  if (!bridge) { updateSidecarStatus("offline"); return; }
+  if (on) {
+    bridge.configure({
+      url: "ws://127.0.0.1:7770/zeq",
+      game: "doomgeneric-web",
+      client: "zeq-doom/1.0",
+      onstate: (state) => updateSidecarStatus(state)
+    });
+    bridge.connect();
+  } else {
+    bridge.close();
+    updateSidecarStatus("offline");
+  }
+}
+
 function drainEvents() {
   if (!ready || !started) return;
   for (let i = 0; i < 64; i++) {
@@ -305,6 +337,14 @@ function pollSnapshot() {
   $("phase-status").textContent = s.aligned ? "PHASE LOCKED" : s.paused ? "PAUSED" : "SEEKING PHASE";
   $("phase-status").classList.toggle("locked", !!s.aligned);
   $("pause-button").textContent = s.paused ? "RESUME" : "PAUSE";
+  if (sidecarOn) {
+    const bridge = sidecarBridge();
+    const now = performance.now();
+    if (bridge && bridge.state === "online" && now - lastSidecarSnapshot >= 500) {
+      lastSidecarSnapshot = now;
+      bridge.snapshot(s);
+    }
+  }
 }
 
 function applySettings() {
@@ -312,10 +352,13 @@ function applySettings() {
   try { settings = JSON.parse(safeGet(SETTINGS_KEY) || "{}"); } catch (_) {}
   const phase = settings.phase !== false;
   const scan = settings.scan !== false;
+  const sidecar = settings.sidecar === true;
   muted = settings.muted === true;
   sensitivity = Number(settings.sensitivity) || 1;
   $("phase-toggle").checked = phase;
   $("scan-toggle").checked = scan;
+  $("sidecar-toggle").checked = sidecar;
+  if (sidecar !== sidecarOn) applySidecar(sidecar);
   $("sensitivity").value = String(sensitivity);
   $("sensitivity-value").textContent = `${sensitivity.toFixed(1)}×`;
   document.querySelector(".screen-scan").classList.toggle("off", !scan);
@@ -324,7 +367,7 @@ function applySettings() {
   if (ready) { call("ZEQ_SetPhaseBonus", [phase ? 1 : 0]); call("ZEQ_SetMuted", [muted ? 1 : 0]); }
 }
 function persistSettings() {
-  safeSet(SETTINGS_KEY, JSON.stringify({ phase: $("phase-toggle").checked, scan: $("scan-toggle").checked, muted, sensitivity }));
+  safeSet(SETTINGS_KEY, JSON.stringify({ phase: $("phase-toggle").checked, scan: $("scan-toggle").checked, sidecar: $("sidecar-toggle").checked, muted, sensitivity }));
   applySettings();
 }
 
@@ -366,6 +409,7 @@ document.querySelectorAll("dialog").forEach((dialog) => dialog.addEventListener(
 }));
 $("phase-toggle").addEventListener("change", persistSettings);
 $("scan-toggle").addEventListener("change", persistSettings);
+$("sidecar-toggle").addEventListener("change", persistSettings);
 $("sensitivity").addEventListener("input", () => { sensitivity = Number($("sensitivity").value); $("sensitivity-value").textContent = `${sensitivity.toFixed(1)}×`; });
 $("sensitivity").addEventListener("change", persistSettings);
 $("verify-ledger").addEventListener("click", verifyLedger);
