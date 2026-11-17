@@ -40,6 +40,7 @@
 #include "i_video.h"
 
 #include "p_setup.h"
+#include "zeq_doom.h"
 #include "p_saveg.h"
 #include "p_tick.h"
 
@@ -112,7 +113,6 @@ boolean         usergame;               // ok to save / end game
 boolean         timingdemo;             // if true, exit with report on completion 
 boolean         nodrawers;              // for comparative timing purposes 
 int             starttime;          	// for comparative timing purposes  	 
- 
 boolean         viewactive; 
  
 int             deathmatch;           	// only if started as net death 
@@ -142,8 +142,8 @@ boolean         precache = true;        // if true, load all graphics at start
 
 boolean         testcontrols = false;    // Invoked by setup to test controls
 int             testcontrols_mousespeed;
- 
 
+ 
  
 wbstartstruct_t wminfo;               	// parms for world map / intermission 
  
@@ -652,7 +652,8 @@ void G_DoLoadLevel (void)
 	memset (players[i].frags,0,sizeof(players[i].frags)); 
     } 
 		 
-    P_SetupLevel (gameepisode, gamemap, 0, gameskill);    
+    P_SetupLevel (gameepisode, gamemap, 0, gameskill);
+    ZEQ_RecordEvent (ZEQ_EVENT_LEVEL, (gameepisode << 8) | gamemap);
     displayplayer = consoleplayer;		// view the guy you are playing    
     gameaction = ga_nothing; 
     Z_CheckHeap ();
