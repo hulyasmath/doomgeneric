@@ -132,11 +132,13 @@
   <h2>Engine protocols.</h2>
   <label class="setting-row"><span><b>PHASE DAMAGE</b><small>Enable the engine-native +50% impulse.</small></span><input type="checkbox" id="phase-toggle" checked></label>
   <label class="setting-row"><span><b>CRT SCANLINES</b><small>Display-only overlay; Doom pixels remain unchanged.</small></span><input type="checkbox" id="scan-toggle" checked></label>
+  <label class="setting-row"><span><b>LOCAL SIDECAR LINK</b><small>Mirror telemetry to a local zeq-kernel (ws://127.0.0.1:7770). Optional; the game is fully playable without it. <output id="sidecar-status">offline</output></small></span><input type="checkbox" id="sidecar-toggle"></label>
   <label class="setting-slider"><span>MOUSE SENSITIVITY <output id="sensitivity-value">1.0×</output></span><input type="range" id="sensitivity" min="0.4" max="2" step="0.1" value="1"></label>
   <p class="fine-print">Settings and the current save capsule are stored only in this browser. The shareware WAD is unmodified id Software game data.</p>
 </dialog>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="sdk/zeq-game-sdk.js"></script>
 <script src="zeq.js"></script>
 {{{ SCRIPT }}}
 </body>
