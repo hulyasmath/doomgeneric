@@ -46,7 +46,6 @@ static char previous_hash[65];
 extern int rndindex;
 extern int prndindex;
 extern mobj_t *bodyque[32];
-extern int validcount;
 extern int numbraintargets;
 extern int braintargeton;
 extern mobj_t *braintargets[32];
@@ -227,7 +226,7 @@ int32_t ZEQ_CanonicalAction(actionf_p1 action)
     return -1;
 }
 
-static int canonical_state_hash(char output[65])
+static int canonical_state_hash(int completed_tics, char output[65])
 {
     static const char digits[] = "0123456789abcdef";
     FILE *state = tmpfile();
@@ -272,7 +271,7 @@ static int canonical_state_hash(char output[65])
     write32le(state, totalsecret);
     write32le(state, rndindex);
     write32le(state, prndindex);
-    write32le(state, validcount);
+    // validcount is a transient collision/render traversal cache, not state.
     write32le(state, numbraintargets);
     write32le(state, braintargeton);
     write32le(state, P_BrainSpitParity());
@@ -318,12 +317,78 @@ static int canonical_state_hash(char output[65])
     return 1;
 }
 
+#ifdef ZEQ_CANONICAL
+#define CANONICAL_CAPACITY 64
+#define CANONICAL_RECORD_BYTES 68
+
+static uint8_t canonical_ring[CANONICAL_CAPACITY][CANONICAL_RECORD_BYTES];
+static uint8_t canonical_export[CANONICAL_RECORD_BYTES];
+static uint32_t canonical_read_index;
+static uint32_t canonical_write_index;
+static uint32_t canonical_dropped;
+static uint32_t canonical_errors;
+static int32_t canonical_interval;
+
+void ZEQ_CanonicalSetInterval(int32_t interval)
+{
+    canonical_read_index = canonical_write_index = 0;
+    canonical_dropped = canonical_errors = 0;
+    canonical_interval = interval;
+    if (interval < 0 || interval > 2000000)
+    {
+        canonical_interval = 0;
+        canonical_errors++;
+    }
+}
+
+void ZEQ_CanonicalAfterTic(void)
+{
+    int completed = gametic + 1;
+    char hash[65];
+    uint8_t *record;
+    uint32_t bits;
+    int i;
+    if (canonical_interval <= 0 || completed % canonical_interval != 0) return;
+    if (!canonical_state_hash(completed, hash))
+    {
+        canonical_errors++;
+        return;
+    }
+    if (canonical_write_index - canonical_read_index == CANONICAL_CAPACITY)
+    {
+        canonical_read_index++;
+        canonical_dropped++;
+    }
+    record = canonical_ring[canonical_write_index % CANONICAL_CAPACITY];
+    bits = (uint32_t)completed;
+    record[0] = bits & 255;
+    record[1] = (bits >> 8) & 255;
+    record[2] = (bits >> 16) & 255;
+    record[3] = (bits >> 24) & 255;
+    for (i = 0; i < 64; i++) record[4 + i] = (uint8_t)hash[i];
+    canonical_write_index++;
+}
+
+int32_t ZEQ_CanonicalRead(void)
+{
+    if (canonical_read_index == canonical_write_index) return 0;
+    memcpy(canonical_export, canonical_ring[canonical_read_index % CANONICAL_CAPACITY],
+           CANONICAL_RECORD_BYTES);
+    canonical_read_index++;
+    return CANONICAL_RECORD_BYTES;
+}
+
+uint8_t *ZEQ_CanonicalData(void) { return canonical_export; }
+int32_t ZEQ_CanonicalDropped(void) { return (int32_t)canonical_dropped; }
+int32_t ZEQ_CanonicalErrors(void) { return (int32_t)canonical_errors; }
+#endif
+
 static void emit_checkpoint(void)
 {
     char hash[65];
     player_t *player = &players[consoleplayer];
     mobj_t *mo = player->mo;
-    if (!canonical_state_hash(hash))
+    if (!canonical_state_hash(completed_tics, hash))
     {
         input_error("state-serialization");
         return;
