@@ -30,7 +30,7 @@ clean:
 $(OUTPUT):	$(OBJS) ../web/shell.html
 	@echo [Linking $@]
 	$(VB)$(CC) $(CFLAGS) $(LDFLAGS) $(OBJS) \
-		-o $(OUTPUT).html $(LIBS)
+	-o $(OUTPUT).html $(LIBS)
 
 $(OBJS): | $(OBJDIR)
 
