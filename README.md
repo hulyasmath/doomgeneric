@@ -59,6 +59,14 @@ real engine paths (`P_FireWeapon`, `P_DamageMobj`, `P_KillMobj`, `P_MovePlayer`,
   replay scope is fresh single-player E1M1. The separate browser-to-native gate
   exports actual browser input and requires equal canonical hashes at matching
   completed tics with the real renderer enabled.
+- **Signed-content SDK (Phase 5 milestone)** — `zeq-content.js` implements
+  Ed25519-signed mod manifests, explicit publisher trust, bound file sizes and
+  SHA-256 digests, safe relative paths, machine records, and expiring sealed
+  parcels using X25519, HKDF-SHA256, and AES-256-GCM. Parcel replay, wrong
+  recipients, modified headers/ciphertext, and expiry are rejected. Independent
+  Python and JavaScript vectors match exactly. This milestone does not load mods
+  into Doom: verified immutable WAD delivery to `W_AddFile`, lump ordering, and
+  PK3 support remain pending.
 - **Browser shell** — scalable viewport, live same-tic conformance panel,
   ruleset/cooldown/impulse diagnostics, pointer-lock mouse aim, resilient keyboard
   and touch controls, and original MIDI music via bundled freepats instruments.
@@ -100,7 +108,16 @@ cc -std=c99 -Wall -Wextra -Werror -I sdk \
 /tmp/zeq-test-physics
 node sdk/tests/test_time.js
 node sdk/tests/test_physics.js
+python3 sdk/tests/test_content.py
+node sdk/tests/test_content.js
 ```
+
+The Phase 5 content tests cover signed manifests, explicit trust, bound file
+hashes, path refusal, sealed-parcel opening, expiry/replay/recipient failures,
+and authenticated-data tampering. The Python test independently generates the
+public deterministic test vector; the JavaScript test must reproduce its exact
+canonical parcel and ID and reject tag tampering and replay. The checked-in
+vector keys are public test keys only, never production credentials.
 
 The browser's **RUN CONFORMANCE TEST** control runs 34 time/physics checks and
 reports the latest live same-tic C/WASM-versus-JavaScript comparison.
@@ -128,6 +145,8 @@ WAD/build artifacts are not source-controlled.
 ## Limitations (by design)
 
 - Single-player only; no netcode.
+- Phase 5 currently provides signed-content SDK verification only; Doom cannot
+  yet load signed WADs, and PK3 is unsupported. Parcels never execute content.
 - The ledger is tamper-evident, not tamper-proof; it cannot prove a clean run.
 - Saves and settings live in this browser only.
 - Shareware episode (Knee-Deep in the Dead) from the unmodified id Software WAD.
