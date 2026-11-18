@@ -48,6 +48,8 @@ const ROOT = path.resolve(__dirname, "../..");
   assert.deepEqual(await page.evaluate(() => ZeqDiagnostics.input()), { holds: [], counts: {} });
 
   await page.locator('[data-open="ledger-dialog"]').click();
+  await page.locator("#phase5-self-test").click();
+  await page.waitForFunction(() => document.getElementById("phase5-self-test").textContent.includes("ALL CHECKS PASS"));
   const downloadPromise = page.waitForEvent("download");
   await page.locator("#download-input").click();
   const download = await downloadPromise;

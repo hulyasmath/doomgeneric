@@ -80,4 +80,5 @@ copy_verified "$ROOT/sdk/zeq-physics-table.js" "$ROOT/dist/sdk/zeq-physics-table
 copy_verified "$ROOT/sdk/zeq-game-sdk.js" "$ROOT/dist/sdk/zeq-game-sdk.js"
 copy_verified "$ROOT/sdk/zeq-security.js" "$ROOT/dist/sdk/zeq-security.js"
 copy_verified "$ROOT/sdk/zeq-capsule.js" "$ROOT/dist/sdk/zeq-capsule.js"
+copy_verified "$ROOT/sdk/zeq-content.js" "$ROOT/dist/sdk/zeq-content.js"
 echo "Browser build written to $ROOT/dist (all copied artifacts verified byte-for-byte)"
