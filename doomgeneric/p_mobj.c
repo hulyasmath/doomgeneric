@@ -74,7 +74,7 @@ P_SetMobjState
 	
 	state = st->nextstate;
     } while (!mobj->tics);
-				
+					
     return true;
 }
 
@@ -113,8 +113,11 @@ void P_XYMovement (mobj_t* mo)
     player_t*	player;
     fixed_t	xmove;
     fixed_t	ymove;
-			
-    if (!mo->momx && !mo->momy)
+				
+    if (!mo->momx && !mo->momy
+        && (!ZEQ_PhysicsActive()
+            || (!mo->zeq_accel_x && !mo->zeq_accel_y
+                && mo->zeq_impulse_kind == ZEQ_IMPULSE_NONE)))
     {
 	if (mo->flags & MF_SKULLFLY)
 	{
@@ -139,8 +142,13 @@ void P_XYMovement (mobj_t* mo)
     else if (mo->momy < -MAXMOVE)
 	mo->momy = -MAXMOVE;
 		
-    xmove = mo->momx;
-    ymove = mo->momy;
+    if (ZEQ_PhysicsActive())
+        ZEQ_StepMobjXY (mo, &xmove, &ymove);
+    else
+    {
+        xmove = mo->momx;
+        ymove = mo->momy;
+    }
 	
     do
     {
@@ -242,6 +250,8 @@ void P_ZMovement (mobj_t* mo)
 {
     fixed_t	dist;
     fixed_t	delta;
+    fixed_t	zmove;
+    fixed_t	gravity = 0;
     
     // check for smooth step up
     if (mo->player && mo->z < mo->floorz)
@@ -252,8 +262,19 @@ void P_ZMovement (mobj_t* mo)
 	    = (VIEWHEIGHT - mo->player->viewheight)>>3;
     }
     
+    // Gravity is acceleration inside the Zeq step, not a final carrier stamp.
+    if (ZEQ_PhysicsActive())
+    {
+        if (!(mo->flags & MF_NOGRAVITY)
+            && mo->z + mo->momz > mo->floorz)
+            gravity = mo->momz == 0 ? -GRAVITY*2 : -GRAVITY;
+        ZEQ_StepMobjZ (mo, gravity, &zmove);
+    }
+    else
+        zmove = mo->momz;
+
     // adjust height
-    mo->z += mo->momz;
+    mo->z += zmove;
 	
     if ( mo->flags & MF_FLOAT
 	 && mo->target)
@@ -344,7 +365,7 @@ void P_ZMovement (mobj_t* mo)
 	    return;
 	}
     }
-    else if (! (mo->flags & MF_NOGRAVITY) )
+    else if (! (mo->flags & MF_NOGRAVITY) && !ZEQ_PhysicsActive() )
     {
 	if (mo->momz == 0)
 	    mo->momz = -GRAVITY*2;
@@ -388,7 +409,7 @@ P_NightmareRespawn (mobj_t* mobj)
     fixed_t		z; 
     subsector_t*	ss; 
     mobj_t*		mo;
-    mapthing_t*		mthing;
+    mapthing_t*	mthing;
 		
     x = mobj->spawnpoint.x << FRACBITS; 
     y = mobj->spawnpoint.y << FRACBITS; 
@@ -444,6 +465,9 @@ void P_MobjThinker (mobj_t* mobj)
     // momentum movement
     if (mobj->momx
 	|| mobj->momy
+	|| (ZEQ_PhysicsActive()
+	    && (mobj->zeq_accel_x || mobj->zeq_accel_y
+	        || mobj->zeq_impulse_kind != ZEQ_IMPULSE_NONE))
 	|| (mobj->flags&MF_SKULLFLY) )
     {
 	P_XYMovement (mobj);
@@ -516,6 +540,7 @@ P_SpawnMobj
 	
     mobj = Z_Malloc (sizeof(*mobj), PU_LEVEL, NULL);
     memset (mobj, 0, sizeof (*mobj));
+    ZEQ_InitMobj (mobj);
     info = &mobjinfo[type];
 	
     mobj->type = type;
@@ -610,7 +635,7 @@ void P_RespawnSpecials (void)
     
     subsector_t*	ss; 
     mobj_t*		mo;
-    mapthing_t*		mthing;
+    mapthing_t*	mthing;
     
     int			i;
 
@@ -643,7 +668,6 @@ void P_RespawnSpecials (void)
 	    break;
     }
     
-    // spawn it
     if (mobjinfo[i].flags & MF_SPAWNCEILING)
 	z = ONCEILINGZ;
     else
