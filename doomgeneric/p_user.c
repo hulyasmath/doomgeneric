@@ -55,10 +55,20 @@ P_Thrust
   angle_t	angle,
   fixed_t	move ) 
 {
+    fixed_t dx;
+    fixed_t dy;
+
     angle >>= ANGLETOFINESHIFT;
-    
-    player->mo->momx += FixedMul(move,finecosine[angle]); 
-    player->mo->momy += FixedMul(move,finesine[angle]);
+    dx = FixedMul(move,finecosine[angle]);
+    dy = FixedMul(move,finesine[angle]);
+
+    if (ZEQ_PhysicsActive())
+        ZEQ_AddAcceleration (player->mo, dx, dy, 0);
+    else
+    {
+        player->mo->momx += dx;
+        player->mo->momy += dy;
+    }
 }
 
 
@@ -146,7 +156,9 @@ void P_MovePlayer (player_t* player)
 	
     cmd = &player->cmd;
 	
-    carrier = ZEQ_CarrierPermille() * (FRACUNIT / 1000);
+    carrier = ZEQ_GetRuleset() == ZEQ_RULESET_LEGACY
+        ? ZEQ_CarrierPermille() * (FRACUNIT / 1000)
+        : FRACUNIT;
     player->mo->angle += (cmd->angleturn<<16);
 
     // Do not let the player control movement
@@ -162,7 +174,7 @@ void P_MovePlayer (player_t* player)
     if ( (cmd->forwardmove || cmd->sidemove) 
 	 && player->mo->state == &states[S_PLAY] )
     {
-	P_SetMobjState (player->mo, S_PLAY_RUN1);
+	P_SetMobjState (player, S_PLAY_RUN1);
     }
 }	
 
@@ -274,7 +286,7 @@ void P_PlayerThink (player_t* player)
 
     // A special event has no other buttons.
     if (cmd->buttons & BT_SPECIAL)
-	cmd->buttons = 0;			
+	cmd->buttons = 0;		
 		
     if (cmd->buttons & BT_CHANGE)
     {
