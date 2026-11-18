@@ -8,23 +8,62 @@ real engine paths (`P_FireWeapon`, `P_DamageMobj`, `P_KillMobj`, `P_MovePlayer`,
 
 ## What the Zeq layer adds
 
-- **1.287 Hz carrier** — computed from Doom tics with exact integer math:
-  `phase = (gametic * 1287) % 35000`. The carrier also modulates player thrust by
-  ±2.4% through Doom's fixed-point `finesine` table.
-- **Phase-locked damage** — release a shot while the carrier crosses the mint
-  window (φ ≈ 0.25, phase 6475–11025 of 35000) and confirmed hits deal +50%.
-  Projectile phase state travels with the missile, so a delayed rocket or BFG
-  impact is attributed to the shot that created it, not the latest trigger pull.
-- **Engine event ledger** — phase shots/hits/kills, level entry, damage, deaths,
-  and save/load events leave the engine through a ring buffer and are chained in
-  the browser with SHA-256. Verification proves chain integrity only — it is not
-  proof of a competitively legitimate run.
-- **Sovereign save capsule** — one local Doom savegame (`.dsg`) stored in
-  browser storage, restorable across page reloads, exportable as a file. Local
-  only: no account, no cloud sync; export before clearing browser data.
-- **Browser shell** — scalable 8:5 viewport, live carrier meter, telemetry rail,
-  pointer-lock mouse aim, touch controls (44px targets, safe-area aware), and
-  original MIDI music via bundled freepats instruments.
+- **Exact zeq-time-v1 arithmetic (Phase 1)** — the real C engine computes the
+  777000777 ns Zeqond clock, Q64 phase, Q30 carrier/lapse values, and Q40 cycle
+  derivative from each Doom gametic. The browser independently repeats the
+  calculation with BigInt JavaScript and compares the integer fields on the same
+  tic. Generated sine tables and shared vectors keep C, JavaScript, and Python
+  conformant; host `sin`/`sqrt` do not decide cross-runtime results.
+- **Lapse-integrated gameplay (Phase 2)** — `zeq-physics-v1` evaluates force and
+  acceleration inside deterministic midpoint integration for real mobj X/Y/Z
+  movement. Doom still owns collision detection, sliding, floor/ceiling response,
+  and friction. A stationary zero-force object remains unchanged.
+- **Finite-interval impulses** — actual damage and radius-attack paths queue X/Y/Z
+  impulses, which are integrated with ordinary acceleration over 32 deterministic
+  substeps. They are not instantaneous momentum additions or final-value carrier
+  multipliers.
+- **Exact weapon cooldowns** — each weapon's original Doom attack cadence is
+  converted to a rational Zeqond duration and an exact ready tic. `P_FireWeapon`
+  enforces readiness; the HUD countdown is informational only.
+- **Three explicit rulesets** — `doom-vanilla-v1` keeps original gameplay;
+  `zeq-physics-v1` enables the Phase 2 paths without legacy bonuses; and
+  `zeq-arcade-legacy-v1` preserves the approximate `1287/35000` carrier, ±2.4%
+  thrust modulation, and optional +50% phase-hit damage as legacy behavior.
+  Ruleset changes take effect at a new deployment; loading a save restores its
+  saved ruleset.
+- **Engine event ledger** — level, combat, firing, impact, explosion, impulse,
+  cooldown, ruleset, death, and save/load events leave the engine through a ring
+  buffer and are chained and signed by the browser or sidecar. Verification
+  proves local chain integrity only, not competitive legitimacy. Detailed impulse
+  telemetry is diagnostic and is outside the event hash chain. Replay remains
+  `unavailable` until a real headless Doom run reproduces the recorded states.
+- **Signed event/proof formats (Phase 3)** — browser and Node records use
+  `zeq-event-v2`, canonical JSON, SHA-256 chain links, and Ed25519 signatures.
+  Public trust anchors are self-declared unless explicitly trusted. The sidecar
+  private key stays in its mode-0600 key file; browser signing keys are
+  nonextractable Web Crypto keys.
+- **Real ZEQC3 save capsules (Phase 3)** — a local Doom savegame is sealed as
+  `ZEQC3 [salt 16][iv 12][ciphertext][tag 16]` using scrypt
+  `N=2^17, r=8, p=1`, the HITE domain prefix, and AES-256-GCM. Browser key
+  derivation runs in a Worker. Wrong PINs, weak new PINs, tampering, and
+  truncation fail closed. Extension v2 preserves the ruleset, global Doom clocks,
+  cooldowns, and Zeq mobj state; old unextended saves load as Vanilla. Saves are
+  local only: no account or cloud sync; export before clearing browser data.
+- **Real headless replay and MCP (Phase 4)** — the native null-platform build runs
+  the original C engine at 35 Hz, captures/accepts complete 24-byte `ticcmd_t`
+  records, and hashes canonical gameplay state with SHA-256. A `match` requires a
+  second real engine process to reproduce every checkpoint. Signed proof-v2 export
+  and a local stdio MCP adapter implement run/stop/status, live input, state reads,
+  proof export, and independent verification. MCP run/input controls are opt-in and
+  reject PINs, private keys, private seeds, and machine equations. The current
+  replay scope is fresh single-player E1M1. The separate browser-to-native gate
+  exports actual browser input and requires equal canonical hashes at matching
+  completed tics with the real renderer enabled.
+- **Browser shell** — scalable viewport, live same-tic conformance panel,
+  ruleset/cooldown/impulse diagnostics, pointer-lock mouse aim, resilient keyboard
+  and touch controls, and original MIDI music via bundled freepats instruments.
+  Holds are reference-counted across aliases and released on key/pointer release,
+  cancellation, lost capture, blur, page exit, or visibility loss.
 
 ## Controls
 
@@ -42,7 +81,49 @@ cd dist && python3 -m http.server 8080
 
 `build-web.sh` runs `make -f Makefile.emscripten` (SDL2/SDL2_mixer ports,
 `--shell-file web/shell.html`, preloaded `doom1.wad` + timidity config + freepats)
-and copies the result to `dist/`.
+and copies the result plus the browser SDK modules to `dist/`. Every copied
+artifact must be nonempty and match its source byte-for-byte or the build fails.
+
+Regenerate the shared tables/vectors and run all native/reference conformance
+suites with:
+
+```sh
+python3 sdk/zeq_time.py --generate
+python3 sdk/zeq_physics.py --generate
+python3 sdk/tests/test_time.py
+python3 sdk/tests/test_physics.py
+cc -std=c99 -Wall -Wextra -Werror -I sdk \
+  sdk/tests/test_time.c sdk/zeq_time.c -o /tmp/zeq-test-time
+/tmp/zeq-test-time
+cc -std=c99 -Wall -Wextra -Werror -I sdk \
+  sdk/tests/test_physics.c sdk/zeq_physics.c sdk/zeq_time.c -o /tmp/zeq-test-physics
+/tmp/zeq-test-physics
+node sdk/tests/test_time.js
+node sdk/tests/test_physics.js
+```
+
+The browser's **RUN CONFORMANCE TEST** control runs 34 time/physics checks and
+reports the latest live same-tic C/WASM-versus-JavaScript comparison.
+
+## Building and testing real headless replay
+
+```sh
+sh build-headless.sh
+node sdk/tests/test_replay.js
+node sdk/tests/test_mcp.js
+```
+
+The replay tests execute actual movement/fire commands, compare two independent
+processes, require an altered command to mismatch, reject input/state tampering,
+and verify a signed proof with a third real run. The MCP tests cover initialize and
+tool discovery, read-only defaults, offline/live input, stop/status/state, proof
+export, verification, and secret rejection. With the browser preview served on
+port 8765, `node sdk/tests/test_browser_replay.js` additionally exports actual
+browser `ticcmd_t` records, replays them in the native C engine, and requires the
+WASM/native canonical hashes to match. The test also drives movement, turning,
+and firing with the real renderer enabled. Build scripts regenerate all large
+arithmetic vectors from the committed Python generators; generated outputs and
+WAD/build artifacts are not source-controlled.
 
 ## Limitations (by design)
 
