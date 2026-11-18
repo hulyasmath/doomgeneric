@@ -23,6 +23,9 @@
 
 #include "d_event.h"
 #include "d_loop.h"
+#ifdef ZEQ_HEADLESS
+#include "zeq_headless.h"
+#endif
 #include "d_ticcmd.h"
 
 #include "i_system.h"
@@ -124,8 +127,8 @@ static int GetAdjustedTime(void)
 
     if (new_sync)
     {
-	// Use the adjustments from net_client.c only if we are
-	// using the new sync mode.
+		// Use the adjustments from net_client.c only if we are
+		// using the new sync mode.
 
         time_ms += (offsetms / FRACUNIT);
     }
@@ -504,8 +507,8 @@ boolean D_InitNetGame(net_connect_data_t *connect_data)
         }
 
         //!
-        // @arg <address>
         // @category net
+        // @arg <address>
         //
         // Connect to a multiplayer server running on the given
         // address.
@@ -738,7 +741,7 @@ void TryRunTics (void)
 
     if (new_sync)
     {
-	counts = availabletics;
+		counts = availabletics;
     }
     else
     {
@@ -760,26 +763,26 @@ void TryRunTics (void)
     }
 
     if (counts < 1)
-	counts = 1;
+		counts = 1;
 
     // wait for new tics if needed
 
     while (!PlayersInGame() || lowtic < gametic/ticdup + counts)
     {
-	NetUpdate ();
+		NetUpdate ();
 
         lowtic = GetLowTic();
 
-	if (lowtic < gametic/ticdup)
-	    I_Error ("TryRunTics: lowtic < gametic");
+		if (lowtic < gametic/ticdup)
+		    I_Error ("TryRunTics: lowtic < gametic");
 
         // Don't stay in this loop forever.  The menu is still running,
         // so return to update the screen
 
-	if (I_GetTime() / ticdup - entertic > 0)
-	{
-	    return;
-	}
+		if (I_GetTime() / ticdup - entertic > 0)
+		{
+		    return;
+		}
 
         I_Sleep(1);
     }
@@ -801,22 +804,25 @@ void TryRunTics (void)
             SinglePlayerClear(set);
         }
 
-	for (i=0 ; i<ticdup ; i++)
-	{
+		for (i=0 ; i<ticdup ; i++)
+		{
             if (gametic/ticdup > lowtic)
                 I_Error ("gametic>lowtic");
 
             memcpy(local_playeringame, set->ingame, sizeof(local_playeringame));
 
             loop_interface->RunTic(set->cmds, set->ingame);
-	    gametic++;
+#ifdef ZEQ_HEADLESS
+            ZEQ_HeadlessAfterTic();
+#endif
+		    gametic++;
 
-	    // modify command for duplicated tics
+		    // modify command for duplicated tics
 
             TicdupSquash(set);
-	}
+		}
 
-	NetUpdate ();	// check for new console commands
+		NetUpdate ();	// check for new console commands
     }
 }
 

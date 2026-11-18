@@ -43,6 +43,7 @@ void P_WriteSaveGameHeader(char *description);
 
 boolean P_ReadSaveGameEOF(void);
 void P_WriteSaveGameEOF(void);
+void P_SetSaveGameCanonical(boolean canonical);
 
 // Persistent storage/archiving.
 // These are the load / save game routines.
