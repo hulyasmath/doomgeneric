@@ -63,6 +63,9 @@ const URL = process.env.ZEQ_TEST_URL || "http://127.0.0.1:8765/";
   assert.equal(selfTest.ok, true, JSON.stringify(selfTest));
   assert.equal(selfTest.capsule.count, 9);
   assert.equal(selfTest.security.count, 8);
+  const phase5SelfTest = await page.evaluate(() => ZeqDiagnostics.phase5SelfTest());
+  assert.equal(phase5SelfTest.ok, true, JSON.stringify(phase5SelfTest));
+  assert.equal(phase5SelfTest.count, 12);
 
   step = "new deployment";
   await page.locator("#start-button").click();
@@ -165,7 +168,7 @@ const URL = process.env.ZEQ_TEST_URL || "http://127.0.0.1:8765/";
   const consoleErrors = consoleMessages.filter((line) => line.startsWith("error:"));
   assert.deepEqual(consoleErrors, []);
   console.log(JSON.stringify({ ok: true, selfTests: selfTest.capsule.count + selfTest.security.count,
-    capsuleBytes: capsule.length, signedEvents: proofA.events.length, replay: verdictA.replay,
+    phase5SelfTests: phase5SelfTest.count, capsuleBytes: capsule.length, signedEvents: proofA.events.length, replay: verdictA.replay,
     wrongPinTamperTruncationRefused: true, legacyRawSaveRestored: true, exportVerified: true,
     mobileOverflow: false, consoleErrors: consoleErrors.length, badResponses: badResponses.length }, null, 2));
   await browser.close();
