@@ -5,6 +5,7 @@
 #define ZEQ_DOOM_H
 
 #include <stdint.h>
+#include <stdio.h>
 #include "doomkeys.h"
 #include "d_player.h"
 #include "zeq_time.h"
@@ -179,6 +180,7 @@ int ZEQ_PhaseAligned(void);
 int ZEQ_CarrierPermille(void);
 void ZEQ_UpdateSnapshot(void);
 void ZEQ_RecordEvent(zeq_event_type_t type, int value);
+zeq_event_t *ZEQ_GetEvent(void);
 void ZEQ_PhaseShot(player_t* player);
 int ZEQ_PhaseAttack(player_t* player);
 int ZEQ_PhaseHit(player_t* player, int damage, int phase_attack);
@@ -189,6 +191,7 @@ int ZEQ_GetRuleset(void);
 int ZEQ_GetPendingRuleset(void);
 int ZEQ_PhysicsActive(void);
 void ZEQ_SetRuleset(int ruleset);
+void ZEQ_SetRulesetImmediate(int ruleset);
 const char* ZEQ_RulesetName(int ruleset);
 void ZEQ_InitMobj(mobj_t* mo);
 void ZEQ_AddAcceleration(mobj_t* mo, fixed_t x, fixed_t y, fixed_t z);
@@ -205,6 +208,7 @@ void ZEQ_EndExplosion(void);
 zeq_impulse_kind_t ZEQ_ImpulseContext(void);
 
 void ZEQ_WriteSaveExtension(void (*write32)(int32_t));
+void ZEQ_WriteCanonicalExtra(FILE *stream, void (*write32)(FILE *stream, int32_t value));
 int ZEQ_ReadSaveExtension(int32_t (*read32)(void));
 void ZEQ_LoadLegacySave(void);
 

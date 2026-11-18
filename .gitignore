@@ -11,6 +11,7 @@ Release/
 Build/
 doomgeneric.map
 doomgeneric/build/
+doomgeneric/build-headless/
 doomgeneric/doomgeneric.data
 doomgeneric/doomgeneric.html
 doomgeneric/doomgeneric.js
@@ -20,3 +21,22 @@ doomgeneric/freepats/
 doomgeneric/timidity.cfg
 dist/
 node_modules/
+__pycache__/
+*.pyc
+screenshots/phase2-*.png
+screenshots/phase3-*.png
+# Reproducible outputs of sdk/zeq_time.py and sdk/zeq_physics.py.
+sdk/vectors/zeq-time-v1.json
+sdk/vectors/zeq-physics-v1.json
+sdk/tests/zeq_test_vectors.h
+sdk/tests/zeq_test_physics_vectors.h
+sdk/zeq_sine_q30.inc
+sdk/zeq-time-table.js
+sdk/zeq-physics-table.js
+# Host-local proof output, private signing keys, and native binaries.
+.zeq-machine.json
+.zeq-machine-signing-key.pem
+machine.anchor.json
+machine.log*.jsonl
+*.zeqproof.json
+doomgeneric/doomgeneric-headless
