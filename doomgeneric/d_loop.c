@@ -23,7 +23,7 @@
 
 #include "d_event.h"
 #include "d_loop.h"
-#ifdef ZEQ_HEADLESS
+#if defined(ZEQ_HEADLESS) || defined(ZEQ_CANONICAL)
 #include "zeq_headless.h"
 #endif
 #include "d_ticcmd.h"
@@ -310,6 +310,28 @@ void D_StartGameLoop(void)
     lasttime = GetAdjustedTime() / ticdup;
 }
 
+void D_ResetForNewGame(void)
+{
+    gametic = 0;
+    maketic = 0;
+    recvtic = 0;
+    skiptics = 0;
+    lasttime = GetAdjustedTime() / ticdup;
+}
+
+void D_ResyncAfterLoad(void)
+{
+    int nexttic = gametic / ticdup + 1;
+
+    // G_DoLoadGame runs inside RunTic, whose caller increments gametic after
+    // this hook returns. Resume command production at that following tic;
+    // otherwise a fast frame can reject the stale schedule as gametic>lowtic.
+    maketic = nexttic;
+    recvtic = nexttic;
+    skiptics = 0;
+    lasttime = GetAdjustedTime() / ticdup;
+}
+
 #if ORIGCODE
 //
 // Block until the game start message is received from the server.
@@ -507,8 +529,8 @@ boolean D_InitNetGame(net_connect_data_t *connect_data)
         }
 
         //!
-        // @category net
         // @arg <address>
+        // @category net
         //
         // Connect to a multiplayer server running on the given
         // address.
@@ -812,6 +834,9 @@ void TryRunTics (void)
             memcpy(local_playeringame, set->ingame, sizeof(local_playeringame));
 
             loop_interface->RunTic(set->cmds, set->ingame);
+#ifdef ZEQ_CANONICAL
+            ZEQ_CanonicalAfterTic();
+#endif
 #ifdef ZEQ_HEADLESS
             ZEQ_HeadlessAfterTic();
 #endif
