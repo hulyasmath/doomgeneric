@@ -1,20 +1,24 @@
 /*
- * ZEQ PLUGIN / 0.1.0
- * Portable engine integration layer for the Zeq framework.
+ * ZEQ PLUGIN / 0.1.1-legacy
+ * Portable legacy arcade integration layer for the Zeq framework.
  *
- * Single header, no dependencies, C99. Drop it into any game or
- * simulation: it provides the exact integer carrier timebase, the
- * Zeqond clock, the phase-alignment window, and a small event ring
- * the host drains toward the sidecar bridge.
+ * Single header, no dependencies, C99. This API intentionally preserves
+ * the original 1287/1000 carrier, 0.777 s Zeqond, and 24 permille pulse
+ * approximations for compatibility. It is NOT the exact zeq-time-v1
+ * implementation. New integrations requiring 777000777 ns, Q64 phase,
+ * and deterministic lapse math must use zeq_time.c / zeq_time.h instead.
+ *
+ * It also provides the legacy phase-alignment window and a small event
+ * ring the host drains toward the optional sidecar bridge.
  *
  * All functions are `static`: include this header in ONE translation
  * unit of the host engine (e.g. doomgeneric includes it from its
  * platform glue). If you need it in several TUs, move the ring
  * storage behind your own singleton.
  *
- * Doom reference: doomgeneric/zeq_doom.c implements this same surface
- * against finesine[] and the 35 Hz gametic; the numbers below are
- * chosen so both agree bit-for-bit.
+ * Doom reference: doomgeneric/zeq_doom.c retains this legacy arcade surface
+ * against finesine[] and the 35 Hz gametic. Its separate exact snapshot API
+ * uses zeq_time.c and never feeds Phase 1 lapse values back into gameplay.
  */
 #ifndef ZEQ_PLUGIN_H
 #define ZEQ_PLUGIN_H
@@ -25,8 +29,8 @@
 extern "C" {
 #endif
 
-#define ZEQ_CARRIER_NUMERATOR 1287  /* carrier: 1.287 Hz */
-#define ZEQ_ZEQOND_NUMERATOR   777  /* one Zeqond: 0.777 s */
+#define ZEQ_CARRIER_NUMERATOR 1287  /* legacy carrier: approximately 1.287 Hz */
+#define ZEQ_ZEQOND_NUMERATOR   777  /* legacy Zeqond: approximately 0.777 s */
 #define ZEQ_WINDOW_LO_NUM       37  /* aligned window: 37/200 = 0.185 */
 #define ZEQ_WINDOW_HI_NUM       63  /*                 63/200 = 0.315 */
 #define ZEQ_WINDOW_DEN         200
@@ -36,9 +40,9 @@ extern "C" {
 
 static int64_t zeq_period(int tick_rate) { return (int64_t)tick_rate * 1000; }
 
-/* Exact integer phase in [0, tick_rate*1000). Advances 1287/1000 of a
- * cycle per second at any tick rate, so the carrier is exactly
- * 1.287 Hz on a 35 Hz Doom gametic or a 60 Hz simulation step alike. */
+/* Legacy integer phase in [0, tick_rate*1000). Advances 1287/1000 of a
+ * cycle per second. This approximates, but does not equal, the exact
+ * 1000000000/777000777 Hz zeq-time-v1 carrier. */
 static int32_t zeq_phase(int64_t gametic, int tick_rate)
 {
     return (int32_t)((gametic * ZEQ_CARRIER_NUMERATOR) % zeq_period(tick_rate));
@@ -57,7 +61,7 @@ static int zeq_aligned(int64_t gametic, int tick_rate)
     return zeq_phase_aligned(zeq_phase(gametic, tick_rate), tick_rate);
 }
 
-/* Chrono-tactical Zeqond clock: integer count of 0.777 s units. */
+/* Legacy arcade clock: integer count of approximate 0.777 s units. */
 static int64_t zeq_zeqond(int64_t gametic, int tick_rate)
 {
     return (gametic * ZEQ_ZEQOND_NUMERATOR) / zeq_period(tick_rate);
