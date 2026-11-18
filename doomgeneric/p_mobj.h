@@ -277,9 +277,27 @@ typedef struct mobj_s
     // Thing being chased/attacked for tracers.
     struct mobj_s*	tracer;	
 
-    // Zeq phase state travels with projectiles and confirmed hits.
+    // Zeq state travels with projectiles and deterministic save extensions.
+    uint32_t		zeq_id;
     int			zeq_phase;
     int			zeq_phase_hit;
+    fixed_t		zeq_accel_x;
+    fixed_t		zeq_accel_y;
+    fixed_t		zeq_accel_z;
+    fixed_t		zeq_impulse_x;
+    fixed_t		zeq_impulse_y;
+    fixed_t		zeq_impulse_z;
+    uint32_t		zeq_impulse_kind;
+    uint32_t		zeq_impulse_mass;
+    uint32_t		zeq_impulse_source_id;
+    uint32_t		zeq_impulse_inflictor_id;
+    int32_t		zeq_impulse_residual_x;
+    int32_t		zeq_impulse_residual_y;
+    int32_t		zeq_impulse_residual_z;
+
+    // Within-tic XYZ integration handoff; never serialized as run state.
+    int32_t		zeq_integrated_tic;
+    fixed_t		zeq_step_z;
     
 } mobj_t;
 

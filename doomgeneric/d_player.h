@@ -152,6 +152,10 @@ typedef struct player_s
     //  0-3 for which color to draw player.
     int			colormap;	
 
+    // Exact Zeqond readiness is authoritative in zeq-physics-v1.
+    int32_t		zeq_cooldown_start[NUMWEAPONS];
+    int32_t		zeq_cooldown_ready[NUMWEAPONS];
+
     // Overlay view sprites (gun, etc).
     pspdef_t		psprites[NUMPSPRITES];
 
@@ -184,7 +188,7 @@ typedef struct
     int		epsd;	// episode # (0-2)
 
     // if true, splash the secret level
-    boolean	didsecret;
+    boolean		didsecret;
     
     // previous and next levels, origin 0
     int		last;
