@@ -36,6 +36,7 @@
 // State.
 #include "doomstat.h"
 #include "r_state.h"
+#include "zeq_doom.h"
 // Data.
 #include "sounds.h"
 
@@ -683,13 +684,13 @@ boolean PTR_SlideTraverse (intercept_t* in)
     P_LineOpening (li);
     
     if (openrange < slidemo->height)
-	goto isblocking;		// doesn't fit
+	goto isblocking;	// doesn't fit
 		
     if (opentop - slidemo->z < slidemo->height)
-	goto isblocking;		// mobj is too high
+	goto isblocking;	// mobj is too high
 
     if (openbottom - slidemo->z > 24*FRACUNIT )
-	goto isblocking;		// too big a step up
+	goto isblocking;	// too big a step up
 
     // this line doesn't block movement
     return true;		
@@ -763,11 +764,11 @@ void P_SlideMove (mobj_t* mo)
     bestslidefrac = FRACUNIT+1;
 	
     P_PathTraverse ( leadx, leady, leadx+mo->momx, leady+mo->momy,
-		     PT_ADDLINES, PTR_SlideTraverse );
+			 PT_ADDLINES, PTR_SlideTraverse );
     P_PathTraverse ( trailx, leady, trailx+mo->momx, leady+mo->momy,
-		     PT_ADDLINES, PTR_SlideTraverse );
+			 PT_ADDLINES, PTR_SlideTraverse );
     P_PathTraverse ( leadx, traily, leadx+mo->momx, traily+mo->momy,
-		     PT_ADDLINES, PTR_SlideTraverse );
+			 PT_ADDLINES, PTR_SlideTraverse );
     
     // move up to the wall
     if (bestslidefrac == FRACUNIT+1)
@@ -891,22 +892,22 @@ PTR_AimTraverse (intercept_t* in)
     // shoot a thing
     th = in->d.thing;
     if (th == shootthing)
-	return true;			// can't shoot self
+	return true;		// can't shoot self
     
     if (!(th->flags&MF_SHOOTABLE))
-	return true;			// corpse or something
+	return true;		// corpse or something
 
     // check angles to see if the thing can be aimed at
     dist = FixedMul (attackrange, in->frac);
     thingtopslope = FixedDiv (th->z+th->height - shootz , dist);
 
     if (thingtopslope < bottomslope)
-	return true;			// shot over the thing
+	return true;		// shot over the thing
 
     thingbottomslope = FixedDiv (th->z - shootz, dist);
 
     if (thingbottomslope > topslope)
-	return true;			// shot under the thing
+	return true;		// shot under the thing
     
     // this thing can be hit!
     if (thingtopslope > topslope)
@@ -1090,9 +1091,9 @@ P_AimLineAttack
     linetarget = NULL;
 	
     P_PathTraverse ( t1->x, t1->y,
-		     x2, y2,
-		     PT_ADDLINES|PT_ADDTHINGS,
-		     PTR_AimTraverse );
+			 x2, y2,
+			 PT_ADDLINES|PT_ADDTHINGS,
+			 PTR_AimTraverse );
 		
     if (linetarget)
 	return aimslope;
@@ -1127,9 +1128,9 @@ P_LineAttack
     aimslope = slope;
 		
     P_PathTraverse ( t1->x, t1->y,
-		     x2, y2,
-		     PT_ADDLINES|PT_ADDTHINGS,
-		     PTR_ShootTraverse );
+			 x2, y2,
+			 PT_ADDLINES|PT_ADDTHINGS,
+			 PTR_ShootTraverse );
 }
  
 
@@ -1273,10 +1274,13 @@ P_RadiusAttack
     bombspot = spot;
     bombsource = source;
     bombdamage = damage;
+    ZEQ_BeginExplosion ();
 	
     for (y=yl ; y<=yh ; y++)
 	for (x=xl ; x<=xh ; x++)
 	    P_BlockThingsIterator (x, y, PIT_RadiusAttack );
+
+    ZEQ_EndExplosion ();
 }
 
 
