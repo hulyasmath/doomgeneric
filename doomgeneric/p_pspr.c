@@ -242,6 +242,13 @@ void P_FireWeapon (player_t* player)
     if (!P_CheckAmmo (player))
 	return;
 	
+    if (!ZEQ_WeaponReady (player))
+    {
+        if (player == &players[consoleplayer])
+            player->message = "ZEQ // WEAPON CYCLING";
+        return;
+    }
+    ZEQ_StartCooldown (player);
     ZEQ_PhaseShot (player);
     P_SetMobjState (player->mo, S_PLAY_ATK1);
     newstate = weaponinfo[player->readyweapon].atkstate;
@@ -427,7 +434,7 @@ A_Raise
     psp->sy = WEAPONTOP;
     
     // The weapon has been raised all the way,
-    //  so change to the ready state.
+    //  so change the ready state.
     newstate = weaponinfo[player->readyweapon].readystate;
 
     P_SetPsprite (player, ps_weapon, newstate);
@@ -579,7 +586,6 @@ A_FireBFG
                  deh_bfg_cells_per_shot);
     P_SpawnPlayerMissile (player->mo, MT_BFG);
 }
-
 
 
 //
@@ -765,7 +771,6 @@ A_FireCGun
 }
 
 
-
 //
 // ?
 //
@@ -834,7 +839,6 @@ A_BFGsound
 }
 
 
-
 //
 // P_SetupPsprites
 // Called at start of level for each player.
@@ -866,7 +870,7 @@ void P_MovePsprites (player_t* player)
     state_t*	state;
 	
     psp = &player->psprites[0];
-    for (i=0 ; i<NUMPSPRITES ; i++, psp++)
+    for (i=0 ; i<NUMPSPRITES ; i++,psp++)
     {
 	// a null state means not active
 	if ( (state = psp->state) )	
