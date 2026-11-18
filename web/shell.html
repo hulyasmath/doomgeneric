@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#090d0b">
-  <meta name="description" content="The original Doom engine, upgraded with deterministic Zeq phase combat, a verifiable run ledger, local save capsules, and touch controls.">
+  <meta name="description" content="The original Doom engine with exact Zeq physics, signed evidence, ZEQC3 encrypted local saves, finite impulses, cooldowns, and touch controls.">
   <title>ZEQ // DOOM PROTOCOL</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23090d0b'/%3E%3Cpath d='M12 14h40L29 50h23' fill='none' stroke='%2336e88f' stroke-width='8'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="zeq.css">
@@ -39,11 +39,11 @@
         <div class="phase-flash" id="phase-flash">PHASE LOCK <span>+50% DAMAGE</span></div>
         <div class="title-screen" id="title-screen">
           <div class="title-content">
-            <span class="kicker">ORIGINAL ENGINE / ZEQ UPGRADE 01</span>
+            <span class="kicker">ORIGINAL ENGINE / ZEQ PHYSICS 02</span>
             <h1>DOOM<br><em>RECOMPILED.</em></h1>
-            <p>Every demon. Every map. Every frame from doomgeneric—now phase-locked to the 1.287 Hz carrier.</p>
+            <p>Every demon. Every map. Every frame from doomgeneric—now with lapse-integrated movement, finite-interval impulses, and exact 777000777 ns cooldowns.</p>
             <div class="title-actions">
-              <button class="primary-action" type="button" id="start-button" disabled><span>ENTER E1M1</span><small>NEW UAC DEPLOYMENT</small></button>
+              <button class="primary-action" type="button" id="start-button" disabled><span>ENTER E1M1</span><small id="start-ruleset">NEW DEPLOYMENT / ZEQ PHYSICS</small></button>
               <button class="secondary-action" type="button" id="continue-button" hidden>CONTINUE CAPSULE</button>
             </div>
             <div class="boot-progress" id="boot-progress"><span></span></div>
@@ -53,27 +53,57 @@
       </div>
 
       <div class="carrier-console">
-        <div class="carrier-label"><span>HULYA CARRIER</span><strong>1.287 Hz</strong></div>
-        <div class="phase-track" id="phase-track" aria-label="Carrier phase">
+        <div class="carrier-label"><span id="carrier-title">EXACT ZEQ CLOCK</span><strong id="carrier-frequency">0.777000777 S</strong><small id="legacy-pulse">R 1.000000</small></div>
+        <div class="phase-track" id="phase-track" aria-label="Exact Q64 carrier phase">
           <div class="phase-window"></div><div class="phase-cursor" id="phase-cursor"></div>
         </div>
-        <div class="phase-readout"><span id="phase-value">φ 0.000</span><strong id="phase-status">AWAITING TIC</strong></div>
+        <div class="phase-readout"><span id="phase-value">φ 0.000000</span><strong id="phase-status">AWAITING TIC</strong></div>
       </div>
 
       <div class="desktop-help"><span><b>WASD</b> MOVE</span><span><b>MOUSE</b> AIM</span><span><b>LMB / CTRL</b> FIRE</span><span><b>SPACE</b> USE</span><span><b>1–7</b> WEAPONS</span><span><b>TAB</b> MAP</span></div>
     </section>
 
     <aside class="telemetry" aria-label="Live Zeq telemetry">
-      <section class="telemetry-head"><span class="section-label">LIVE ENGINE STATE</span><strong id="carrier-pulse">R(t) 1.000</strong><small>35 TIC / EXACT INTEGER PHASE</small></section>
+      <section class="telemetry-head"><span class="section-label">EXACT ZEQ CLOCK / V1</span><strong id="exact-carrier">R 1.000000</strong><small>777000777 NS · Q64 PHASE · 35 TIC</small></section>
+      <section class="exact-module">
+        <div class="exact-title"><span class="section-label">C/WASM ↔ JAVASCRIPT</span><strong id="exact-conformance" data-state="waiting">WAITING</strong></div>
+        <div class="exact-grid">
+          <div><span>DOOM TIC</span><strong id="exact-tic">0</strong></div>
+          <div><span>LAPSE N</span><strong id="exact-lapse">1.000000</strong></div>
+          <div class="exact-wide"><span>Q64 PHASE</span><code id="exact-phase">0x0000000000000000</code></div>
+          <div class="exact-wide"><span>D_CYCLE</span><code id="exact-dln">0.000000000</code></div>
+        </div>
+        <p>Same-tic C/WASM ↔ JavaScript time comparison, plus shared midpoint, impulse, and cooldown vectors.</p>
+        <button type="button" id="exact-self-test" disabled>RUN CONFORMANCE TEST</button>
+      </section>
+      <section class="physics-module" id="physics-module">
+        <div class="physics-title"><span class="section-label">PHASE 2 / GAMEPLAY</span><strong id="physics-active">BYPASSED</strong></div>
+        <div class="ruleset-line"><b id="physics-ruleset">ZEQ PHYSICS V1</b><small id="physics-pending" hidden></small></div>
+        <div class="physics-grid">
+          <div><span>READY TIC</span><strong id="cooldown-ready">0</strong></div>
+          <div><span>COOLDOWN</span><strong id="cooldown-remaining">READY</strong></div>
+          <div><span>IMPULSES</span><strong id="impulse-count">0</strong></div>
+          <div><span>PHYSICS ERRORS</span><strong id="physics-errors">0</strong></div>
+        </div>
+        <code class="cooldown-detail" id="cooldown-duration">19 TIC CADENCE</code>
+        <div class="impulse-readout">
+          <span>LAST INTEGRATED IMPULSE</span><strong id="last-impulse-kind">NONE</strong>
+          <code id="last-impulse-detail">J [0, 0, 0] · ΔV [0, 0, 0]</code>
+          <code id="last-impulse-residual">RESIDUAL [0, 0, 0]</code>
+          <small id="last-impulse-meta">NO FINITE INTERVAL RECORDED</small>
+        </div>
+        <div class="live-state"><span>CURRENT ACCELERATION</span><code id="physics-accel">[0, 0, 0]</code></div>
+        <div class="live-state"><span>PENDING BASE IMPULSE</span><code id="physics-pending-impulse">[0, 0, 0]</code></div>
+      </section>
       <section class="stat-grid">
         <div><span>ARMOR</span><strong id="stat-armor">000</strong></div>
         <div><span>KILLS</span><strong id="stat-kills">0 / 0</strong></div>
         <div><span>ZEQOND</span><strong id="stat-zeqond">0</strong></div>
         <div><span>ITEMS</span><strong id="stat-items">0%</strong></div>
       </section>
-      <section class="phase-module">
-        <div><span class="section-label">PHASE-LOCKED IMPULSE</span><span class="module-on" id="module-state">ARMED</span></div>
-        <p>Release fire inside the mint window. Confirmed hits deal +50% damage and enter the ledger.</p>
+      <section class="phase-module" id="phase-module" hidden>
+        <div><span class="section-label">LEGACY PHASE DAMAGE</span><span class="module-on" id="module-state">ARMED</span></div>
+        <p>Legacy arcade only: release fire inside the approximate mint window. Confirmed hits deal +50% damage and enter the ledger.</p>
         <div class="phase-stats"><span><b id="phase-shots">0</b> SHOTS</span><span><b id="phase-hits">0</b> HITS</span><span><b id="phase-kills">0</b> KILLS</span></div>
       </section>
       <section class="event-module">
@@ -82,7 +112,7 @@
       </section>
       <section class="save-module">
         <span class="section-label">SOVEREIGN SAVE</span>
-        <p>One local Doom save capsule. Export it before clearing browser data.</p>
+        <p>New saves are ZEQC3 encrypted in a local Worker with scrypt and AES-256-GCM. Legacy raw saves still open. Export before clearing browser data.</p>
         <div><button type="button" id="save-button" disabled>SAVE CAPSULE</button><button type="button" id="export-save-button" disabled>EXPORT</button></div>
       </section>
     </aside>
@@ -107,13 +137,18 @@
 
 <dialog id="manual-dialog">
   <div class="dialog-head"><span>FIELD MANUAL / 01</span><button type="button" data-close aria-label="Close manual">CLOSE</button></div>
-  <h2>Rip. Tear. Time the carrier.</h2>
-  <p>This is the original shareware Doom episode running in your browser through doomgeneric. The Zeq layer modifies the engine; it does not replace the game.</p>
+  <h2>Rip. Tear. Integrate.</h2>
+  <p>This is the original shareware Doom episode running in your browser through doomgeneric. The Zeq layer modifies the real C engine; it does not replace the game.</p>
   <div class="manual-grid">
     <section><h3>MOVEMENT</h3><p><b>WASD / arrows</b> move and turn. Click the viewport to capture the mouse. <b>Alt</b> strafes; <b>Shift</b> runs.</p></section>
     <section><h3>COMBAT</h3><p><b>Left mouse / Ctrl</b> fires. <b>Space</b> opens doors. <b>1–7</b> select weapons. <b>Tab</b> toggles the automap.</p></section>
-    <section><h3>PHASE LOCK</h3><p>The carrier repeats at 1.287 Hz. Fire when the cursor crosses the mint phase window around φ 0.25 for a deterministic damage bonus.</p></section>
-    <section><h3>LOCAL CAPSULE</h3><p>Save from the telemetry rail. The save stays in this browser and can be exported as a standard Doom .dsg file. No account or cloud sync.</p></section>
+    <section><h3>ZEQ PHYSICS V1</h3><p>Player thrust, gravity, and kinetic kicks use checked integer midpoint integration. Damage and explosion impulses use a one-tic half-sine profile with 32 substeps; Doom retains collision and friction.</p></section>
+    <section><h3>EXACT COOLDOWNS</h3><p>Each weapon’s original attack cadence becomes a rational Zeqond duration. The engine permits firing only at or after its exact ready tic; the HUD countdown is informational.</p></section>
+    <section><h3>RULESETS</h3><p>Choose <b>Zeq Physics</b>, unmodified <b>Doom Vanilla</b>, or the explicitly approximate <b>Legacy Arcade</b> rules. Selection is pending until a fresh deployment; loading a capsule restores its saved ruleset.</p></section>
+    <section><h3>EXACT CLOCK</h3><p>The clock uses 777000777 ns and Q64 phase. Every sample compares compiled C/WASM with independent BigInt JavaScript on the same Doom tic. Shared vectors also check the physics arithmetic.</p></section>
+    <section><h3>ZEQC3 CAPSULE</h3><p>New saves are sealed under your PIN with scrypt N=2^17 and AES-256-GCM in a Worker. Older raw .dsg saves remain readable. The PIN is never stored, logged, or sent to Doom.</p></section>
+    <section><h3>SIGNED EVIDENCE</h3><p>Download a zeq-proof-v2 with canonical event hashes and Ed25519 signatures. A self-declared key is self-consistent, not automatically trusted. Without actual headless reproduction, replay stays unavailable.</p></section>
+    <section><h3>LEGACY PHASE LOCK</h3><p>Legacy Arcade alone preserves the 1287/35000 carrier, ±2.4% thrust modulation, and optional +50% phase-hit damage. These bonuses never activate in Zeq Physics or Vanilla.</p></section>
   </div>
   <p class="fine-print">On touch screens, use the directional pad and action buttons. Drag the right side of the viewport to turn. Escape opens Doom’s original menu.</p>
 </dialog>
@@ -124,13 +159,28 @@
   <p>Discrete engine events are chained locally. Verification recomputes every hash; it proves ledger integrity, not that a run was competitively legitimate.</p>
   <div class="ledger-proof"><span>CHAIN TIP</span><code id="chain-tip">NO EVENTS</code><strong id="ledger-verdict">UNVERIFIED</strong></div>
   <ol class="ledger-list" id="ledger-list"><li>No engine events recorded yet.</li></ol>
-  <div class="dialog-actions"><button type="button" id="verify-ledger">VERIFY CHAIN</button><button class="primary-small" type="button" id="download-ledger">DOWNLOAD JSON</button></div>
+  <div class="dialog-actions"><button type="button" id="verify-ledger">VERIFY CHAIN</button><button type="button" id="phase3-self-test">TEST PHASE 3</button><button type="button" id="download-ledger">DOWNLOAD JSON</button><button type="button" id="download-input">INPUT V1</button><button class="primary-small" type="button" id="download-proof">SIGNED PROOF V2</button></div>
+</dialog>
+
+<dialog id="capsule-dialog">
+  <div class="dialog-head"><span>ZEQC3 / LOCAL CAPSULE</span><button type="button" data-close aria-label="Close capsule dialog">CLOSE</button></div>
+  <h2 id="capsule-title">Seal a ZEQC3 save.</h2>
+  <p id="capsule-copy"></p>
+  <form id="capsule-form">
+    <label class="capsule-pin"><span>CAPSULE PIN</span><input id="capsule-pin" type="password" minlength="8" autocomplete="off" required></label>
+    <label class="capsule-pin" id="capsule-confirm-row"><span>CONFIRM PIN</span><input id="capsule-confirm" type="password" minlength="8" autocomplete="off"></label>
+    <p class="fine-print">The PIN goes directly to a local Worker for this operation. It never enters the C engine, telemetry, logs, saves, or proof exports.</p>
+    <div class="dialog-actions"><button class="primary-small" type="submit" id="capsule-submit">SEAL ZEQC3</button></div>
+    <p class="capsule-busy" id="capsule-busy" role="status" aria-live="polite"></p>
+  </form>
 </dialog>
 
 <dialog id="settings-dialog">
   <div class="dialog-head"><span>LOCAL CONFIGURATION</span><button type="button" data-close aria-label="Close settings">CLOSE</button></div>
   <h2>Engine protocols.</h2>
-  <label class="setting-row"><span><b>PHASE DAMAGE</b><small>Enable the engine-native +50% impulse.</small></span><input type="checkbox" id="phase-toggle" checked></label>
+  <label class="setting-row ruleset-setting"><span><b>GAMEPLAY RULESET</b><small>Pending until a fresh E1M1 deployment. A loaded capsule restores its own saved ruleset.</small></span><select id="ruleset-select" aria-label="Gameplay ruleset"><option value="1">ZEQ PHYSICS V1</option><option value="0">DOOM VANILLA V1</option><option value="2">LEGACY ARCADE V1</option></select></label>
+  <div class="ruleset-deploy"><p id="ruleset-deploy-copy">Zeq Physics applies lapse movement, finite impulses, and exact cooldowns.</p><button type="button" id="deploy-ruleset" disabled>APPLY &amp; REDEPLOY</button></div>
+  <label class="setting-row"><span><b>LEGACY PHASE DAMAGE</b><small>Enable the approximate arcade +50% phase-hit bonus. It has no effect in Zeq Physics or Vanilla.</small></span><input type="checkbox" id="phase-toggle" checked></label>
   <label class="setting-row"><span><b>CRT SCANLINES</b><small>Display-only overlay; Doom pixels remain unchanged.</small></span><input type="checkbox" id="scan-toggle" checked></label>
   <label class="setting-row"><span><b>LOCAL SIDECAR LINK</b><small>Mirror telemetry to a local zeq-kernel (ws://127.0.0.1:7770). Optional; the game is fully playable without it. <output id="sidecar-status">offline</output></small></span><input type="checkbox" id="sidecar-toggle"></label>
   <label class="setting-slider"><span>MOUSE SENSITIVITY <output id="sensitivity-value">1.0×</output></span><input type="range" id="sensitivity" min="0.4" max="2" step="0.1" value="1"></label>
@@ -138,8 +188,13 @@
 </dialog>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="sdk/zeq-time-table.js"></script>
+<script src="sdk/zeq-physics-table.js"></script>
 <script src="sdk/zeq-game-sdk.js"></script>
-<script src="zeq.js"></script>
+<script src="sdk/zeq-build-info.js"></script>
+<script src="sdk/zeq-security.js"></script>
+<script src="sdk/zeq-capsule.js"></script>
+<script src="zeq.js?v=0.4.0"></script>
 {{{ SCRIPT }}}
 </body>
 </html>
