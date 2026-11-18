@@ -3,6 +3,7 @@
 #include "zeq_doom.h"
 #include "doomstat.h"
 #include "d_event.h"
+#include "d_loop.h"
 #include "g_game.h"
 #include "p_local.h"
 #include "tables.h"
@@ -88,6 +89,14 @@ void ZEQ_SetRuleset(int value)
 {
     if (value < ZEQ_RULESET_VANILLA || value > ZEQ_RULESET_LEGACY) return;
     pending_ruleset = (zeq_ruleset_t)value;
+}
+
+void ZEQ_SetRulesetImmediate(int value)
+{
+    if (value < ZEQ_RULESET_VANILLA || value > ZEQ_RULESET_LEGACY) return;
+    ruleset = pending_ruleset = (zeq_ruleset_t)value;
+    ZEQ_ResetRunState();
+    next_mobj_id = 1;
 }
 
 void ZEQ_InitMobj(mobj_t* mo)
@@ -583,6 +592,7 @@ void ZEQ_NewGame(int skill)
     ruleset = pending_ruleset;
     ZEQ_ResetRunState();
     next_mobj_id = 1;
+    D_ResetForNewGame();
     ZEQ_RecordEvent(ZEQ_EVENT_RULESET, ruleset);
     if (skill < sk_baby || skill > sk_nightmare)
         skill = sk_medium;
@@ -643,6 +653,17 @@ void ZEQ_WriteSaveExtension(void (*write32)(int32_t value))
         write32(mo->zeq_impulse_residual_y);
         write32(mo->zeq_impulse_residual_z);
     }
+}
+
+void ZEQ_WriteCanonicalExtra(FILE *stream, void (*write32)(FILE *output, int32_t value))
+{
+    write32(stream, phase_enabled);
+    write32(stream, phase_shot);
+    write32(stream, phase_shots);
+    write32(stream, phase_hits);
+    write32(stream, phase_kills);
+    write32(stream, damage_taken);
+    write32(stream, explosion_context);
 }
 
 int ZEQ_ReadSaveExtension(int32_t (*read32)(void))
