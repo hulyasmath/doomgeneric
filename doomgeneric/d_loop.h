@@ -64,6 +64,12 @@ void TryRunTics (void);
 // Called at start of game loop to initialize timers
 void D_StartGameLoop(void);
 
+// Resynchronize command production after a save restores the simulation tic.
+void D_ResyncAfterLoad(void);
+
+// Establish a zero-based command and simulation origin for a fresh Zeq run.
+void D_ResetForNewGame(void);
+
 // Initialize networking code and connect to server.
 
 boolean D_InitNetGame(net_connect_data_t *connect_data);

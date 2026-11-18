@@ -13,5 +13,11 @@ int ZEQ_HeadlessShouldStop(void);
 int ZEQ_HeadlessRealtime(void);
 int32_t ZEQ_CanonicalPointer(void *pointer);
 int32_t ZEQ_CanonicalAction(actionf_p1 action);
+void ZEQ_CanonicalSetInterval(int32_t interval);
+void ZEQ_CanonicalAfterTic(void);
+int32_t ZEQ_CanonicalRead(void);
+uint8_t *ZEQ_CanonicalData(void);
+int32_t ZEQ_CanonicalDropped(void);
+int32_t ZEQ_CanonicalErrors(void);
 
 #endif

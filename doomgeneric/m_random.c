@@ -45,6 +45,7 @@ static const unsigned char rndtable[256] = {
 
 int	rndindex = 0;
 int	prndindex = 0;
+static int displayrndindex = 0;
 
 // Which one is deterministic?
 int P_Random (void)
@@ -59,7 +60,13 @@ int M_Random (void)
     return rndtable[rndindex];
 }
 
+int M_RandomDisplay (void)
+{
+    displayrndindex = (displayrndindex+1)&0xff;
+    return rndtable[displayrndindex];
+}
+
 void M_ClearRandom (void)
 {
-    rndindex = prndindex = 0;
+    rndindex = prndindex = displayrndindex = 0;
 }

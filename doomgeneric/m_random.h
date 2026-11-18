@@ -29,6 +29,9 @@
 // from a lookup table.
 int M_Random (void);
 
+// Independent cosmetic stream: display effects must not advance gameplay RNG.
+int M_RandomDisplay (void);
+
 // As M_Random, but used only by the play simulation.
 int P_Random (void);
 
