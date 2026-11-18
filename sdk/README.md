@@ -38,6 +38,7 @@ local-first record of play. The bridge only *mirrors* telemetry outward.
 | `zeq-kernel.js`   | Node.js ≥18| Sidecar Runtime: append-only log, sessions, export, verifier |
 | `zeq-replay.js`   | Node.js ≥18| Real headless input, canonical checkpoints, replay and proof |
 | `zeq-mcp.js`      | Node.js ≥18| Local stdio MCP lifecycle, input, state, proof, verification |
+| `zeq-content.js`  | JS (UMD)   | Signed mods, explicit publisher trust, sealed expiring parcels |
 | `vectors/`        | JSON       | Shared C/JavaScript/Python conformance vectors               |
 
 The SDK has no npm dependencies. The Doom WASM reference integration has its own
@@ -159,6 +160,34 @@ second covers ZEQC3 saves, wrong-PIN/tamper/truncation refusal, signed proof exp
 legacy-save compatibility, controls, and mobile layout. These checks establish local
 replay consistency only; they do not prove competitive legitimacy.
 
+## Signed mods and sealed parcels (Phase 5 SDK milestone)
+
+`zeq-content.js` runs in Node.js and the browser. It signs canonical
+`zeq-mod-manifest-v1` bodies with Ed25519 and verifies each declared file's size
+and SHA-256 digest only after the publisher key ID is explicitly trusted. A valid
+signature without that trust decision is self-consistent, not authorized. Mod
+paths are bounded relative UTF-8/NFC paths; traversal, absolute paths, duplicate
+paths, and oversized content are rejected.
+
+`ZEQ-PARCEL-v2` parcels combine signed machine records with ephemeral-static
+X25519, HKDF-SHA256, and AES-256-GCM. Opening checks the recipient, sender
+signature, authenticated header, expiry window, plaintext size, authentication
+tag, and `(recipient_zid, parcel_id)` replay record. The bounded inbox holds at
+most 1000 parcels and 64 MiB of serialized parcel data. Plaintext is returned as
+data only; it is never executed or automatically loaded as a mod.
+
+```sh
+python3 sdk/tests/test_content.py   # independently generates the public vector
+node sdk/tests/test_content.js      # 12 SDK checks + exact Python interop
+```
+
+The browser ledger's **TEST PHASE 5 SDK** button runs the same 12-check suite.
+This is not the engine loader milestone: no content has yet been passed to Doom's
+`W_AddFile`. A later loader must verify every digest/size and supply the same
+immutable bytes to the engine, define WAD lump ordering, and prevent TOCTOU
+replacement. PK3 remains unsupported until a bounded ZIP reader and lump mapping
+exist.
+
 ## What a proof does and does not cover
 
 Every record carries this scope string, and it is repeated here deliberately:
@@ -203,8 +232,8 @@ working code:
 | 6 | Finite-interval impulses      | **Implemented (Doom Physics ruleset)** | Actual damage/explosion paths, X/Y/Z, 32 deterministic substeps |
 | 7 | Zeqond cooldowns              | **Implemented (Doom Physics ruleset)** | Exact ready tics enforced in `P_FireWeapon` |
 | 8 | split64 netcode               | **Roadmap** | no networking code ships; no multiplayer claims are made |
-| 9 | Signed WAD/PK3 loader         | **Roadmap** | not implemented |
-|10 | `boxSeal`/`boxOpen` parcels   | **Roadmap** | not implemented; would require real authenticated crypto before any claim |
+| 9 | Signed WAD/PK3 loader         | **SDK milestone only** | Manifest/trust/file verification implemented; no `W_AddFile` integration or PK3 support |
+|10 | `boxSeal`/`boxOpen` parcels   | **Implemented (SDK)** | Signed, encrypted, expiring, bounded, replay-protected parcels; plaintext is never executed |
 |11 | MCP agent bridge              | **Implemented (local stdio)** | Seven lifecycle/input/state/proof methods; opt-in controls and secret rejection |
 |12 | Headless 20 Hz bot            | **Roadmap** | Real 35 Hz headless replay is implemented; the separate 20 Hz bot scheduler is not |
 
