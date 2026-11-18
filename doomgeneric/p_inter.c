@@ -811,7 +811,8 @@ P_DamageMobj
 
     // Shots released on the carrier peak deal a deterministic 50% bonus.
     target->zeq_phase_hit = 0;
-    if (!player && source && source->player && source->player == &players[consoleplayer])
+    if (ZEQ_GetRuleset() == ZEQ_RULESET_LEGACY
+        && !player && source && source->player && source->player == &players[consoleplayer])
     {
 	int phase_attack;
 	if (inflictor && inflictor != source)
@@ -852,8 +853,16 @@ P_DamageMobj
 	}
 		
 	ang >>= ANGLETOFINESHIFT;
-	target->momx += FixedMul (thrust, finecosine[ang]);
-	target->momy += FixedMul (thrust, finesine[ang]);
+	if (ZEQ_PhysicsActive())
+	    ZEQ_QueueImpulse (target, inflictor, source, ZEQ_ImpulseContext(),
+	                      FixedMul (thrust, finecosine[ang]),
+	                      FixedMul (thrust, finesine[ang]), 0,
+	                      target->info->mass);
+	else
+	{
+	    target->momx += FixedMul (thrust, finecosine[ang]);
+	    target->momy += FixedMul (thrust, finesine[ang]);
+	}
     }
     
     // player specific
