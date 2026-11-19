@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include "doomkeys.h"
 #include "d_player.h"
+#include "d_ticcmd.h"
 #include "zeq_time.h"
 #include "zeq_physics.h"
 
@@ -192,6 +193,10 @@ int ZEQ_GetPendingRuleset(void);
 int ZEQ_PhysicsActive(void);
 void ZEQ_SetRuleset(int ruleset);
 void ZEQ_SetRulesetImmediate(int ruleset);
+void ZEQ_SetAnalogMove(int forward, int side, int turn);
+void ZEQ_ApplyAnalogMove(ticcmd_t *cmd, int *forward, int *side,
+                         int forward_max, int side_max, int turn_max,
+                         int strafe);
 const char* ZEQ_RulesetName(int ruleset);
 void ZEQ_InitMobj(mobj_t* mo);
 void ZEQ_AddAcceleration(mobj_t* mo, fixed_t x, fixed_t y, fixed_t z);
@@ -210,6 +215,8 @@ zeq_impulse_kind_t ZEQ_ImpulseContext(void);
 void ZEQ_WriteSaveExtension(void (*write32)(int32_t));
 void ZEQ_WriteCanonicalExtra(FILE *stream, void (*write32)(FILE *stream, int32_t value));
 int ZEQ_ReadSaveExtension(int32_t (*read32)(void));
+void ZEQ_WriteNetExtra(void (*write32)(int32_t value));
+int ZEQ_ReadNetExtra(int32_t (*read32)(void));
 void ZEQ_LoadLegacySave(void);
 
 #endif
