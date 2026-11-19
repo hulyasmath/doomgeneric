@@ -38,6 +38,9 @@ static uint32_t next_mobj_id = 1;
 static uint32_t impulse_count = 0;
 static uint32_t physics_errors = 0;
 static int explosion_context = 0;
+static int analog_forward = 0;
+static int analog_side = 0;
+static int analog_turn = 0;
 
 // Original attack-state cadence. Durations are rounded to milli-Zeqonds,
 // then converted back to the first eligible Doom tic with an exact ceiling.
@@ -584,6 +587,7 @@ void ZEQ_SetMuted(int muted)
 
 void ZEQ_NewGame(int skill)
 {
+    ZEQ_SetAnalogMove(0, 0, 0);
     phase_shot = 0;
     phase_shots = 0;
     phase_hits = 0;
@@ -597,6 +601,30 @@ void ZEQ_NewGame(int skill)
     if (skill < sk_baby || skill > sk_nightmare)
         skill = sk_medium;
     G_DeferedInitNew((skill_t)skill, 1, 1);
+}
+
+static int ZEQ_ClampAnalog(int value)
+{
+    if (value < -127) return -127;
+    if (value > 127) return 127;
+    return value;
+}
+
+void ZEQ_SetAnalogMove(int forward, int side, int turn)
+{
+    analog_forward = ZEQ_ClampAnalog(forward);
+    analog_side = ZEQ_ClampAnalog(side);
+    analog_turn = ZEQ_ClampAnalog(turn);
+}
+
+void ZEQ_ApplyAnalogMove(ticcmd_t *cmd, int *forward, int *side,
+                         int forward_max, int side_max, int turn_max,
+                         int strafe)
+{
+    (void)strafe;
+    *forward += forward_max * analog_forward / 127;
+    *side += side_max * analog_side / 127;
+    cmd->angleturn -= turn_max * analog_turn / 127;
 }
 
 void ZEQ_Mouse(int dx, int dy, int buttons)
@@ -664,6 +692,36 @@ void ZEQ_WriteCanonicalExtra(FILE *stream, void (*write32)(FILE *output, int32_t
     write32(stream, phase_kills);
     write32(stream, damage_taken);
     write32(stream, explosion_context);
+}
+
+// Rollback snapshots also restore the gameplay globals omitted by Vanilla's
+// ordinary save extension. Display-only event rings remain outside simulation.
+void ZEQ_WriteNetExtra(void (*write32)(int32_t value))
+{
+    write32(phase_enabled);
+    write32(phase_shot);
+    write32(phase_shots);
+    write32(phase_hits);
+    write32(phase_kills);
+    write32(damage_taken);
+    write32(explosion_context);
+}
+
+int ZEQ_ReadNetExtra(int32_t (*read32)(void))
+{
+    phase_enabled = read32();
+    phase_shot = read32();
+    phase_shots = read32();
+    phase_hits = read32();
+    phase_kills = read32();
+    damage_taken = read32();
+    explosion_context = read32();
+    if ((phase_enabled != 0 && phase_enabled != 1)
+        || (phase_shot != 0 && phase_shot != 1)
+        || phase_shots < 0 || phase_hits < 0 || phase_kills < 0
+        || damage_taken < 0 || (explosion_context != 0 && explosion_context != 1))
+        return 0;
+    return 1;
 }
 
 int ZEQ_ReadSaveExtension(int32_t (*read32)(void))
