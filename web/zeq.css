@@ -172,6 +172,17 @@ dialog>p{margin:0 26px 22px;color:var(--muted);line-height:1.6}
 .setting-slider span{display:flex;justify-content:space-between}
 .setting-slider output{color:var(--mint)}
 .setting-slider input{width:100%;margin-top:18px;accent-color:var(--green)}
+.signed-mod-form{margin:0 26px 24px;padding-top:18px;border-top:1px solid var(--line)}
+.signed-mod-form h3{margin:0 0 8px;color:var(--mint);font-family:var(--mono);font-size:11px;letter-spacing:.08em}
+.signed-mod-form>p{margin:0 0 16px;color:var(--muted);font-size:12px;line-height:1.6}
+.signed-mod-form>label{display:block;margin-top:14px;color:var(--mint);font-family:var(--mono);font-size:9px;letter-spacing:.06em}
+.signed-mod-form>label>span{display:block;margin-bottom:7px}
+.signed-mod-form input{width:100%;min-height:44px;padding:9px 11px;border:1px solid #486052;border-radius:0;background:#080e0b;color:var(--text);font-family:var(--mono);font-size:12px}
+.signed-mod-form input[type="file"]{padding:7px}
+.signed-mod-form .dialog-actions{justify-content:flex-start;padding:18px 0 0}
+.signed-mod-form .signed-mod-status{min-height:20px;margin:12px 0 0;font-family:var(--mono);font-size:9px;overflow-wrap:anywhere}
+.signed-mod-form .signed-mod-status[data-state="ok"]{color:var(--mint)}
+.signed-mod-form .signed-mod-status[data-state="error"]{color:var(--orange)}
 .toast{position:fixed;z-index:20;left:50%;bottom:48px;transform:translate(-50%,12px);max-width:calc(100% - 32px);padding:12px 18px;border:1px solid #587361;background:#101b14;color:var(--mint);font-family:var(--mono);font-size:10px;opacity:0;pointer-events:none;transition:opacity .18s,transform .18s}
 .toast.visible{opacity:1;transform:translate(-50%,0)}
 .touch-controls{display:none}
