@@ -131,8 +131,8 @@ static int GetAdjustedTime(void)
 
     if (new_sync)
     {
-		// Use the adjustments from net_client.c only if we are
-		// using the new sync mode.
+			// Use the adjustments from net_client.c only if we are
+			// using the new sync mode.
 
         time_ms += (offsetms / FRACUNIT);
     }
@@ -469,14 +469,14 @@ void D_StartNetGame(net_gamesettings_t *settings,
     //}
 #else
     settings->consoleplayer = 0;
-		settings->num_players = 1;
-		settings->player_classes[0] = player_class;
-		settings->new_sync = 0;
-		settings->extratics = 1;
-		settings->ticdup = 1;
+			settings->num_players = 1;
+			settings->player_classes[0] = player_class;
+			settings->new_sync = 0;
+			settings->extratics = 1;
+			settings->ticdup = 1;
 
-		ticdup = settings->ticdup;
-		new_sync = settings->new_sync;
+			ticdup = settings->ticdup;
+			new_sync = settings->new_sync;
 #endif
 }
 
@@ -522,7 +522,7 @@ boolean D_InitNetGame(net_connect_data_t *connect_data)
         // server and join it.
         //
 
-        i = M_CheckParm("-autojoin");
+        i = M_CheckParmWithArgs("-autojoin", 1);
 
         if (i > 0)
         {
@@ -555,11 +555,19 @@ boolean D_InitNetGame(net_connect_data_t *connect_data)
                 I_Error("Unable to resolve '%s'\n", myargv[i+1]);
             }
         }
-    }
 
-    if (addr != NULL)
-    {
-        if (M_CheckParm("-drone") > 0)
+        //!
+        // @category net
+        // @arg <address>
+        // @category net
+        //
+        // Connect to a multiplayer server running on the given
+        // address.
+        //
+
+        i = M_CheckParm("-drone");
+
+        if (i > 0)
         {
             connect_data->drone = true;
         }
@@ -771,7 +779,7 @@ void TryRunTics (void)
 
     if (new_sync)
     {
-		counts = availabletics;
+			counts = availabletics;
     }
     else
     {
@@ -793,26 +801,26 @@ void TryRunTics (void)
     }
 
     if (counts < 1)
-		counts = 1;
+			counts = 1;
 
     // wait for new tics if needed
 
     while (!PlayersInGame() || lowtic < gametic/ticdup + counts)
     {
-		NetUpdate ();
+			NetUpdate ();
 
         lowtic = GetLowTic();
 
-		if (lowtic < gametic/ticdup)
-		    I_Error ("TryRunTics: lowtic < gametic");
+			if (lowtic < gametic/ticdup)
+			    I_Error ("TryRunTics: lowtic < gametic");
 
         // Don't stay in this loop forever.  The menu is still running,
         // so return to update the screen
 
-		if (I_GetTime() / ticdup - entertic > 0)
-		{
-		    return;
-		}
+			if (I_GetTime() / ticdup - entertic > 0)
+			{
+			    return;
+			}
 
         I_Sleep(1);
     }
@@ -834,8 +842,8 @@ void TryRunTics (void)
             SinglePlayerClear(set);
         }
 
-		for (i=0 ; i<ticdup ; i++)
-		{
+			for (i=0 ; i<ticdup ; i++)
+			{
             if (gametic/ticdup > lowtic)
                 I_Error ("gametic>lowtic");
 
@@ -848,20 +856,22 @@ void TryRunTics (void)
 #ifdef ZEQ_HEADLESS
             ZEQ_HeadlessAfterTic();
 #endif
-		    gametic++;
+			    gametic++;
 
             // A load can replace gametic and maketic inside RunTic. The
             // lowtic and batch count captured above no longer describe this
             // schedule, so finish this frame instead of running stale tics.
+            // Return from the outer batch as well: breaking only this inner
+            // ticdup loop would resume counts with the same stale schedule.
             if (load_resync_generation != start_load_resync_generation)
-                break;
+                return;
 
-		    // modify command for duplicated tics
+			    // modify command for duplicated tics
 
             TicdupSquash(set);
-		}
+			}
 
-		NetUpdate ();	// check for new console commands
+			NetUpdate ();	// check for new console commands
     }
 }
 
