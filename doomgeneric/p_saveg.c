@@ -33,6 +33,9 @@
 #include "m_misc.h"
 #include "r_state.h"
 #include "zeq_doom.h"
+#if defined(ZEQ_HEADLESS) || defined(ZEQ_CANONICAL)
+#include "zeq_headless.h"
+#endif
 
 #define SAVEGAME_EOF 0x1d
 #define ZEQ_SAVE_MAGIC 0x5a455131
@@ -41,6 +44,12 @@
 FILE *save_stream;
 int savegamelength;
 boolean savegame_error;
+static boolean saveg_canonical;
+
+void P_SetSaveGameCanonical(boolean canonical)
+{
+    saveg_canonical = canonical;
+}
 
 // Get the filename of a temporary file to write the savegame to.  After
 // the file has been successfully saved, it will be renamed to the 
@@ -191,6 +200,15 @@ static void *saveg_readp(void)
 
 static void saveg_writep(void *p)
 {
+#if defined(ZEQ_HEADLESS) || defined(ZEQ_CANONICAL)
+    if (saveg_canonical)
+    {
+        int32_t identity = ZEQ_CanonicalPointer(p);
+        if (p && identity == 0) savegame_error = true;
+        saveg_write32(identity);
+        return;
+    }
+#endif
     saveg_write32((intptr_t) p);
 }
 
@@ -255,7 +273,16 @@ static void saveg_read_actionf_t(actionf_t *str)
 
 static void saveg_write_actionf_t(actionf_t *str)
 {
-    // actionf_p1 acp1;
+    // Function identities are stable symbolic IDs, never host addresses.
+#if defined(ZEQ_HEADLESS) || defined(ZEQ_CANONICAL)
+    if (saveg_canonical)
+    {
+        int32_t identity = ZEQ_CanonicalAction(str->acp1);
+        if (identity < 0) savegame_error = true;
+        saveg_write32(identity);
+        return;
+    }
+#endif
     saveg_writep(str->acp1);
 }
 
@@ -479,8 +506,8 @@ static void saveg_write_mobj_t(mobj_t *str)
     // fixed_t momz;
     saveg_write32(str->momz);
 
-    // int validcount;
-    saveg_write32(str->validcount);
+    // int validcount: transient collision/render traversal stamp, not state.
+    saveg_write32(saveg_canonical ? 0 : str->validcount);
 
     // mobjtype_t type;
     saveg_write_enum(str->type);
@@ -872,6 +899,11 @@ static void saveg_write_player_t(player_t *str)
     saveg_write32(str->secretcount);
 
     // char* message;
+#if defined(ZEQ_HEADLESS) || defined(ZEQ_CANONICAL)
+    // The message is display-only text; its host string address is not state.
+    if (saveg_canonical) saveg_write32(0);
+    else
+#endif
     saveg_writep(str->message);
 
     // int damagecount;
@@ -1521,7 +1553,8 @@ void P_ArchiveWorld (void)
     // do lines
     for (i=0, li = lines ; i<numlines ; i++,li++)
     {
-	saveg_write16(li->flags);
+        // ML_MAPPED is renderer/automap discovery, not simulation state.
+        saveg_write16(saveg_canonical ? (li->flags & ~ML_MAPPED) : li->flags);
 	saveg_write16(li->special);
 	saveg_write16(li->tag);
 	for (j=0 ; j<2 ; j++)
