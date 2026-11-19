@@ -10,7 +10,8 @@ const eventNames = {
   1: "LEGACY PHASE SHOT", 2: "LEGACY PHASE HIT", 3: "LEGACY PHASE KILL", 4: "LEVEL ENTER",
   5: "DAMAGE TAKEN", 6: "PLAYER DEATH", 7: "CAPSULE SAVED", 8: "CAPSULE LOADED",
   9: "WEAPON FIRED", 10: "DAMAGE IMPACT", 11: "EXPLOSION PROPAGATION",
-  12: "IMPULSE INTEGRATED", 13: "COOLDOWN STARTED", 14: "RULESET DEPLOYED"
+  12: "IMPULSE INTEGRATED", 13: "COOLDOWN STARTED", 14: "RULESET DEPLOYED",
+  15: "SIGNED PWAD LOAD"
 };
 const rulesetNames = ["DOOM VANILLA V1", "ZEQ PHYSICS V1", "LEGACY ARCADE V1"];
 const rulesetIds = ["doom-vanilla-v1", "zeq-physics-v1", "zeq-arcade-legacy-v1"];
@@ -59,6 +60,8 @@ let captureReplayable = false;
 let canonicalCheckpoints = [];
 let canonicalDropped = 0;
 let canonicalErrors = 0;
+let lastContentEvidence = null;
+let contentLoadBusy = false;
 
 function toast(message) {
   const el = $("toast");
@@ -143,6 +146,7 @@ var Module = {
     $("boot-progress").classList.add("done");
     $("exact-self-test").disabled = false;
     $("deploy-ruleset").disabled = false;
+    $("load-signed-mod").disabled = false;
     applySettings();
     pollExactSnapshot();
   },
@@ -346,12 +350,12 @@ async function sha256(text) {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 function recordPayload(record) {
-  return JSON.stringify({ seq: record.seq, type: record.type, tic: record.tic, phase: record.phase, value: record.value, previousHash: record.previousHash });
+  return JSON.stringify({ seq: record.seq, type: record.type, tic: record.tic, phase: record.phase, value: record.value, ...(record.content ? { content: record.content } : {}), previousHash: record.previousHash });
 }
 function queueEngineEvent(event) {
   eventChain = eventChain.then(async () => {
     const previousHash = ledger.length ? ledger[ledger.length - 1].hash : ZERO_HASH;
-    const record = { seq: ledger.length, type: event.type, tic: event.tic, phase: event.phase, value: event.value, previousHash };
+    const record = { seq: ledger.length, type: event.type, tic: event.tic, phase: event.phase, value: event.value, ...(event.content ? { content: event.content } : {}), previousHash };
     record.hash = await sha256(recordPayload(record));
     ledger.push(record);
     safeSet(LEDGER_KEY, JSON.stringify(ledger));
@@ -421,7 +425,7 @@ const proofKinds = {
   1: "legacy-phase-shot", 2: "projectile-impact", 3: "legacy-phase-kill", 4: "level-enter",
   5: "damage-impact", 6: "player-death", 7: "capsule-saved", 8: "capsule-loaded",
   9: "weapon-fired", 10: "projectile-impact", 11: "explosion", 12: "impulse-integrated",
-  13: "cooldown-started", 14: "ruleset-deployed"
+  13: "cooldown-started", 14: "ruleset-deployed", 15: "signed-pwad-load"
 };
 function randomHex(bytes) {
   const data = new Uint8Array(bytes); crypto.getRandomValues(data);
@@ -466,7 +470,7 @@ async function buildSignedProof() {
     return {
       gametic: String(record.tic), zeqond: time.zeqond, phase64: time.phase64,
       ruleset: run.ruleset, kind: proofKinds[record.type] || "engine-diagnostic",
-      payload: { legacy_type: String(record.type), value: String(record.value), legacy_phase: String(record.phase), legacy_record_sha256: record.hash }
+      payload: { legacy_type: String(record.type), value: String(record.value), legacy_phase: String(record.phase), legacy_record_sha256: record.hash, ...(record.content ? { content: record.content } : {}) }
     };
   });
   if (!proofSessionId) proofSessionId = randomHex(16);
@@ -494,6 +498,100 @@ function runPhase3SelfTest() {
     ok: result.ok, capsule: result.capsule, security: result.security
   })).finally(() => { phase3TestPromise = null; });
   return phase3TestPromise;
+}
+
+/* --- Phase 5 signed PWAD engine handoff --------------------------------
+ * The SDK authenticates the canonical manifest and explicit publisher trust.
+ * C independently hashes an owned copy and Doom reads that exact copy. */
+const contentStatusNames = [
+  "NOT ATTEMPTED", "LOADED", "INVALID ARGUMENT", "PUBLISHER NOT TRUSTED",
+  "INCOMPATIBLE RULESET", "INVALID SIZE", "DIGEST MISMATCH", "MALFORMED PWAD",
+  "ENGINE REFUSED", "DUPLICATE CONTENT"
+];
+function readContentEvidence() {
+  if (!ready) return null;
+  const pointer = call("ZEQ_GetContentEvidence");
+  if (!pointer) return null;
+  const offset = pointer >> 2;
+  const text = (position) => Module.UTF8ToString(pointer + position);
+  return {
+    version: HEAP32[offset], status: HEAP32[offset + 1],
+    statusName: contentStatusNames[HEAP32[offset + 1]] || "UNKNOWN",
+    trusted: !!HEAP32[offset + 2], rulesetCompatible: !!HEAP32[offset + 3],
+    ruleset: rulesetIds[HEAP32[offset + 4]] || "invalid",
+    digestVerified: !!HEAP32[offset + 5], lumpCount: HEAP32[offset + 6],
+    engineLumpCount: HEAP32[offset + 7],
+    modId: text(32), modVersion: text(161), publisherKeyId: text(290),
+    contentSha256: text(355)
+  };
+}
+async function recordContentEvidence(evidence) {
+  lastContentEvidence = { format: "zeq-content-load-evidence-v1", ...evidence };
+  const status = $("mod-load-status");
+  if (status) {
+    status.textContent = `${lastContentEvidence.result.toUpperCase()} / ${lastContentEvidence.modId || "UNKNOWN MOD"} / ${lastContentEvidence.why || lastContentEvidence.statusName || "SDK POLICY"}`;
+    status.dataset.state = lastContentEvidence.result === "loaded" ? "ok" : "error";
+  }
+  queueEngineEvent({
+    type: 15, tic: lastSnapshot?.gametic || 0, phase: lastSnapshot?.phase || 0,
+    value: lastContentEvidence.result === "loaded" ? 1 : 0, content: lastContentEvidence
+  });
+  await eventChain;
+}
+async function refuseSignedWad(why, manifest, stage = "sdk", verification = null) {
+  const file = Array.isArray(manifest?.files) && manifest.files.length === 1 ? manifest.files[0] : null;
+  const evidence = {
+    result: "refused", stage, why,
+    modId: typeof manifest?.mod_id === "string" ? manifest.mod_id : "",
+    modVersion: typeof manifest?.mod_version === "string" ? manifest.mod_version : "",
+    publisherKeyId: verification?.key_id || "", trusted: !!verification?.authorized,
+    publisherTrust: verification?.authorized ? "explicitly-trusted" : "not-authorized",
+    contentSha256: typeof file?.sha256 === "string" ? file.sha256 : "",
+    ruleset: rulesetIds[lastExactSnapshot?.ruleset ?? 1],
+    rulesetCompatible: !!verification?.authorized && !!manifest?.rulesets?.includes(rulesetIds[lastExactSnapshot?.ruleset ?? 1]),
+    digestVerified: !!verification?.ok
+  };
+  await recordContentEvidence(evidence);
+  return { ok: false, why, evidence: lastContentEvidence };
+}
+async function loadSignedWad(manifest, wadBytes, trustedKeyId) {
+  if (!ready) return refuseSignedWad("engine is not ready", manifest, "loader");
+  if (contentLoadBusy) return refuseSignedWad("another content load is active", manifest, "loader");
+  if (!(wadBytes instanceof Uint8Array)) return refuseSignedWad("PWAD bytes are required", manifest, "loader");
+  contentLoadBusy = true;
+  try {
+    const verified = await ZeqContent.verifyModFiles(manifest, Array.isArray(manifest?.files) && manifest.files.length === 1
+      ? [{ path: manifest.files[0].path, bytes: wadBytes }] : [], { trustedKeyIds: [trustedKeyId] });
+    if (!verified.ok) return await refuseSignedWad(verified.why || "signed content verification failed", manifest);
+    if (manifest.engine_api !== "doomgeneric-zeq-v1") return await refuseSignedWad("unsupported engine API", manifest, "sdk", verified);
+    if (manifest.files.length !== 1 || !/\.wad$/i.test(manifest.files[0].path)) return await refuseSignedWad("exactly one PWAD is supported", manifest, "sdk", verified);
+    if (manifest.dependencies.length) return await refuseSignedWad("mod dependencies are not supported", manifest, "sdk", verified);
+    const activeRuleset = lastExactSnapshot?.ruleset ?? 1;
+    const activeId = rulesetIds[activeRuleset];
+    if (!manifest.rulesets.includes(activeId)) return await refuseSignedWad("active ruleset is not declared by the mod", manifest, "sdk", verified);
+    const rulesetMask = manifest.rulesets.reduce((mask, id) => mask | (1 << rulesetIds.indexOf(id)), 0);
+    const pointer = Module._malloc(wadBytes.length);
+    if (!pointer) return await refuseSignedWad("engine allocation failed", manifest, "engine", verified);
+    let result;
+    try {
+      HEAPU8.set(wadBytes, pointer);
+      result = Module.ccall("ZEQ_LoadVerifiedWad", "number",
+        ["number", "number", "string", "string", "string", "string", "number", "number"],
+        [pointer, wadBytes.length, manifest.files[0].sha256, manifest.mod_id, manifest.mod_version,
+          verified.key_id, 1, rulesetMask]);
+    } finally { Module._free(pointer); }
+    const engine = readContentEvidence();
+    if (!engine) return await refuseSignedWad("engine evidence unavailable", manifest, "engine");
+    const evidence = {
+      ...engine, result: result === 1 && engine.status === 1 ? "loaded" : "refused",
+      stage: "engine", signatureValid: true, publisherTrust: "explicitly-trusted",
+      engineApi: manifest.engine_api
+    };
+    await recordContentEvidence(evidence);
+    return { ok: evidence.result === "loaded", why: evidence.result === "loaded" ? "" : engine.statusName, evidence: lastContentEvidence };
+  } catch (error) {
+    return await refuseSignedWad(error.message || "signed content load failed", manifest, "loader");
+  } finally { contentLoadBusy = false; }
 }
 
 /* --- Optional local sidecar bridge (zeq-game-sdk) ----------------------
@@ -899,6 +997,28 @@ $("scan-toggle").addEventListener("change", persistSettings);
 $("sidecar-toggle").addEventListener("change", persistSettings);
 $("sensitivity").addEventListener("input", () => { sensitivity = Number($("sensitivity").value); $("sensitivity-value").textContent = `${sensitivity.toFixed(1)}×`; });
 $("sensitivity").addEventListener("change", persistSettings);
+$("signed-mod-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (contentLoadBusy) return;
+  const button = $("load-signed-mod");
+  button.disabled = true;
+  $("mod-load-status").textContent = "VERIFYING SIGNATURE, TRUST, DIGEST, AND PWAD";
+  $("mod-load-status").dataset.state = "";
+  try {
+    const manifestFile = $("mod-manifest").files[0];
+    const wadFile = $("mod-wad").files[0];
+    if (!manifestFile || !wadFile) throw new Error("manifest and PWAD are required");
+    if (manifestFile.size > ZeqContent.MAX_MANIFEST_BYTES || wadFile.size > ZeqContent.MAX_MOD_FILE_BYTES)
+      throw new Error("signed content exceeds its size limit");
+    const manifest = JSON.parse(await manifestFile.text());
+    const wad = new Uint8Array(await wadFile.arrayBuffer());
+    const result = await loadSignedWad(manifest, wad, $("mod-trusted-key").value.trim());
+    toast(result.ok ? `SIGNED PWAD LOADED / ${result.evidence.lumpCount} LUMPS` : `PWAD REFUSED / ${result.why.toUpperCase()}`);
+  } catch (error) {
+    await refuseSignedWad(error.message || "unable to read signed content", null, "loader");
+    toast(`PWAD REFUSED / ${error.message.toUpperCase()}`);
+  } finally { button.disabled = !ready; }
+});
 $("verify-ledger").addEventListener("click", verifyLedger);
 $("download-proof").addEventListener("click", downloadSignedProof);
 $("download-input").addEventListener("click", downloadInputCapture);
@@ -1014,6 +1134,18 @@ window.ZeqDiagnostics = Object.freeze({
   verifySignedProof: (proof) => ZeqSecurity.verifyProof(proof),
   phase3SelfTest: () => runPhase3SelfTest(),
   phase5SelfTest: () => ZeqContent.selfTest(),
+  loadSignedWad: (manifest, bytes, trustedKeyId) => loadSignedWad(manifest, wadBytes, trustedKeyId),
+  contentEvidence: () => lastContentEvidence ? JSON.parse(JSON.stringify(lastContentEvidence)) : null,
+  engineContentEvidence: () => readContentEvidence(),
+  contentLumpPresent: (name) => Module.ccall("ZEQ_ContentLumpPresent", "number", ["string"], [String(name)]),
+  contentLump: (name) => {
+    const pointer = Module._malloc(4096);
+    if (!pointer) return { ok: false, status: -2 };
+    try {
+      const length = Module.ccall("ZEQ_ContentReadLump", "number", ["string", "number", "number"], [String(name), pointer, 4096]);
+      return length < 0 ? { ok: false, status: length } : { ok: true, data: Array.from(HEAPU8.slice(pointer, pointer + length)) };
+    } finally { Module._free(pointer); }
+  },
   capsuleStored: () => { const data = readSave(); return data ? { bytes: data.length, zeqc3: isZeqc3(data), magic: bytesToBase64(data.subarray(0, 5)) } : null; },
   canonical: () => ({ checkpoints: canonicalCheckpoints.map((checkpoint) => ({ ...checkpoint })), dropped: canonicalDropped, errors: canonicalErrors }),
   input: () => ({ holds: [...keyHolds.values()].map((hold) => ({ id: hold.id, key: hold.key, released: hold.released, finished: hold.finished })), counts: Object.fromEntries(keyCounts) })
