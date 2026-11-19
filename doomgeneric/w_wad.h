@@ -12,6 +12,11 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
+// You should have received a copy of the GNU General Public License
+// along with this program; if not, write to the Free Software
+// Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+// 02110-1301, USA.
+//
 // DESCRIPTION:
 //	WAD I/O functions.
 //
@@ -57,6 +62,11 @@ extern unsigned int numlumps;
 
 wad_file_t *W_AddFile (char *filename);
 
+// Takes ownership of a malloc-allocated buffer. The same immutable bytes back
+// every subsequent lump read; no path is reopened after this handoff.
+wad_file_t *W_AddMemoryFile(void *data, size_t length);
+
+int	W_NumLumps (void);
 int	W_CheckNumForName (char* name);
 int	W_GetNumForName (char* name);
 
