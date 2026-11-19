@@ -1,5 +1,5 @@
 Zeq SDK (zq track), copied from hulyasmath/zeq-doomgeneric
-branch claude/zeqond-native-hilbert-sdk, commit 13660ca
+branch claude/zeq-doom-integration, commit f8fa82b
 files: zeq.js, zeq-link.js, zeq-browser.js, zeq-host.js, zeq-panel.js, zeq-ship.js,
        examples/doom/doom-zeq.js, examples/doom/doom-ship.js
 Do not edit here. Change the SDK repository and copy again.

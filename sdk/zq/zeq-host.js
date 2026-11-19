@@ -84,7 +84,7 @@ async function attach(zeq, spec) {
   const contracts = {};
   for (const [key, def] of Object.entries(spec.contracts)) contracts[key] = await zeq.contract(def);
   const memory = Object.assign({}, spec.memory || {});
-  /* events sent; events the machine accepted or refused; transitions fired (one event may fire more than one) */
+  /* events sent; events whose moves the machine all fired (accepted) or of which it refused one (refused); transitions fired */
   const stats = { events: 0, accepted: 0, refused: 0, fires: 0 };
   const decisions = [];
   let current = null, queue = Promise.resolve(), sequence = 0;
@@ -96,6 +96,7 @@ async function attach(zeq, spec) {
     const r = await c.fire(to, input || {});
     const out = Object.assign({ contract }, r);
     if (r.fired) stats.fires++;
+    if (current) { if (r.fired) current.fired++; else current.refused++; }
     decisions.push(Object.assign({ sequence: current ? current.sequence : null, kind: current ? current.kind : null }, out));
     return out;
   }
@@ -108,13 +109,12 @@ async function attach(zeq, spec) {
     const h = spec.on[kind];
     stats.events++;
     if (h === undefined) return null;
-    current = { sequence: sequence++, kind };
+    const mine = current = { sequence: sequence++, kind, fired: 0, refused: 0 };
     try {
       let r = typeof h === "function" ? await h(event, handle) : await fire(h.contract, h.to, typeof h.input === "function" ? h.input(event, memory) : (h.input || {}));
       if (r === undefined) r = null;
-      if (r && typeof r.fired === "boolean") { if (r.fired) stats.accepted++; else stats.refused++; }
       return r;
-    } finally { current = null; }
+    } finally { if (mine.refused) stats.refused++; else if (mine.fired) stats.accepted++; current = null; }
   }
   /* Events are decided in the order sent. A failure rejects its own send() and does not stop the ones after it. */
   function send(event) {

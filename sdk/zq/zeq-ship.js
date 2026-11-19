@@ -18,7 +18,7 @@
  * The packed page works under a strict content-security policy: inline scripts
  * and same-origin fetches only, no blob or data URLs, no workers of its own.
  * A build that starts a Worker from a file needs a host shim (--shim) that
- * answers the same messages on the page; see examples/doom/doom-ship.js.
+ * answers the same messages on the page.
  *
  * No key and no secret belongs in a page. pack and split refuse text that
  * looks like one.
