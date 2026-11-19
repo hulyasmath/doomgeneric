@@ -6,6 +6,8 @@ and frame comes from the unmodified shareware `doom1.wad`; the upgrades hook int
 real engine paths (`P_FireWeapon`, `P_DamageMobj`, `P_KillMobj`, `P_MovePlayer`,
 `G_DoLoadLevel`, save/load).
 
+**Zeq SDK proof of concept:** the engine's events decided as state contracts on a Zeq machine, with no engine change. See [docs/zeq-contracts-hook.md](docs/zeq-contracts-hook.md).
+
 ## Program map and repository ownership
 
 - **[Consolidated Phase 0–13 roadmap](docs/zeq-roadmap-v1.md)** — the controlling

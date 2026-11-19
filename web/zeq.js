@@ -361,6 +361,12 @@ function queueEngineEvent(event) {
     safeSet(LEDGER_KEY, JSON.stringify(ledger));
     updateLedger();
     addEventToStream(record);
+    // Zeq SDK hook: every engine event, as the engine emitted it, to whatever the page plugged in
+    // (state contracts on a Zeq machine, for one). The game never waits on it and never depends on it.
+    if (typeof window.ZeqHostHook === "function") {
+      try { Promise.resolve(window.ZeqHostHook({ type: record.type, gametic: record.tic, phase: record.phase, value: record.value })).catch((error) => console.warn("Zeq host hook failed", error)); }
+      catch (error) { console.warn("Zeq host hook failed", error); }
+    }
     if (sidecarOn) {
       const bridge = sidecarBridge();
       if (bridge) bridge.event({ type: record.type, tic: record.tic, phase: record.phase, value: record.value });
