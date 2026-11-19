@@ -53,21 +53,26 @@ const Link = require("../zq/zeq-link.js");
     await page.click("text=ENTER E1M1"); await page.waitForTimeout(2500);
     await page.keyboard.down("Control"); await page.waitForTimeout(6000); await page.keyboard.up("Control");
     await page.waitForTimeout(500);
-    const state = await page.evaluate(async () => { await window.ZeqMachinePanel.idle(); return { ...window.ZeqMachinePanel.state, fires: window.ZeqMachinePanel.host().stats.fires, weaponId: window.ZeqMachinePanel.bridge().weapon.id }; });
+    const state = await page.evaluate(async () => { await window.ZeqMachinePanel.idle(); const host = window.ZeqMachinePanel.host(); return { ...window.ZeqMachinePanel.state, fires: host.stats.fires, weaponId: host.contracts.weapon.id, record: await host.record(), states: host.states() }; });
     assert.ok(state.events > 0, "the running engine's events reached the panel");
-    assert.ok(state.accepted >= 5, `the machine accepted ${state.accepted} shots`);
+    assert.ok(state.accepted >= 5, `the machine accepted ${state.accepted} events`);
     assert.equal(state.refused, 0, "the engine's own cooldown never asks for a shot the rule refuses");
     assert.equal(state.player, "alive"); checks += 4;
 
     /* the machine's own record agrees with the page */
     const weapon = await machine.link.contracts.get(state.weaponId);
     assert.equal(weapon.definition.name, "doom.weapon");
-    assert.equal(weapon.fires, state.fires, "every transition the page counted is a row on the machine's chain");
+    const ZeqHost = require("../zq/zeq-host.js");
+    const rows = Object.values(state.record.contracts).reduce((n, c) => n + c.rows.length, 0);
+    assert.equal(rows, state.fires, "every transition the page counted is a row on the machine's chains");
+    assert.equal(state.states.ruleset, "zeq"); assert.equal(state.states.level, "playing"); assert.equal(state.states.run, "clean");
+    const audit = await ZeqHost.audit({ readContract: (id) => machine.link.contracts.get(id) }, state.record);
+    assert.ok(audit.ok, "the played match audits against the machine: " + audit.problems.join()); checks += 2;
     assert.equal(weapon.chain_valid, true); checks += 3;
     assert.match(await page.locator("#zm-readout").innerText(), /accepted \d+\s+refused 0/);
     const leaked = await page.evaluate((k) => [JSON.stringify(Object.assign({}, localStorage)), document.cookie, location.href, document.documentElement.outerHTML].some((s) => s.includes(k)), key);
     assert.equal(leaked, false, "the key is in no storage, cookie, address or markup");
     assert.deepEqual(errors, []); checks += 3;
-    console.log(`Browser game OK: ${checks} checks; the WebAssembly game played in Chromium on a live machine: ${state.events} engine events, ${state.accepted} shots accepted, ${weapon.fires} rows on the machine's chain`);
+    console.log(`Browser game OK: ${checks} checks; the WebAssembly game played in Chromium on a live machine: ${state.events} engine events, ${state.accepted} events accepted, ${rows} rows on the machine's five chains, audited`);
   } finally { await browser.close(); machine.stop(); site.close(); }
 })().catch((e) => { console.error(e); process.exit(1); });

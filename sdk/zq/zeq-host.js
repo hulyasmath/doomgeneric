@@ -29,6 +29,7 @@
 "use strict";
 
 const FORMAT = "zeq-host-v1";
+const RECORD_FORMAT = "zeq-host-record-v1";
 class ZeqRefusal extends Error {
   constructor(code, detail) { super(`${code}: ${detail}`); this.name = "ZeqRefusal"; this.code = code; this.detail = String(detail); }
 }
@@ -122,11 +123,58 @@ async function attach(zeq, spec) {
     queue = result.then(() => undefined, () => undefined);
     return result;
   }
-  return Object.freeze({ format: FORMAT, name: spec.name || "host", contracts, memory, stats, send, idle: () => queue, decisions: () => decisions.slice(),
+  /*
+   * The run as the machine holds it: for every rule set its id, the hash of its definition, and its chain of
+   * fires (Zeqond, state hash, previous). Hand this to anyone; with a key to the machine they can audit() it.
+   */
+  async function record() {
+    await queue;
+    const out = {};
+    for (const [key, c] of Object.entries(contracts)) { const r = await c.read(); out[key] = { id: c.id, name: r.definition.name, definition_sha256: r.definition_sha256, state: r.state, fires: r.fires, rows: r.rows, head: r.prev }; }
+    return { format: RECORD_FORMAT, host: spec.name || "host", machine: zeq.machine || null, stats: Object.assign({}, stats), contracts: out };
+  }
+  return Object.freeze({ format: FORMAT, name: spec.name || "host", contracts, memory, stats, send, record, idle: () => queue, decisions: () => decisions.slice(),
     states: () => Object.fromEntries(Object.entries(contracts).map(([k, c]) => [k, c.state])) });
 }
 
-const api = Object.freeze({ format: FORMAT, ZeqRefusal, attach, check });
+async function sha256Hex(text) {
+  if (typeof require === "function") { try { return require("node:crypto").createHash("sha256").update(text).digest("hex"); } catch (_) { /* a browser */ } }
+  const d = await global.crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(d)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+/*
+ * audit(zeq, record) -> { ok, problems, contracts }. For someone who did not run the host.
+ * Two checks per rule set, neither of which trusts the host:
+ *   the links   each row's "previous" is the hash of the row before it, and the last row hashes to the head
+ *   the machine its own record today has the same definition, begins with the same rows, and it calls the chain valid
+ * `zeq` is any handle with readContract(id). Pass null to check the links alone, with no machine.
+ */
+async function audit(zeq, record) {
+  const problems = [], seen = {};
+  if (!isObject(record) || record.format !== RECORD_FORMAT || !isObject(record.contracts)) return { ok: false, problems: [`not a ${RECORD_FORMAT} record`], contracts: {} };
+  for (const [key, c] of Object.entries(record.contracts)) {
+    const note = (text) => problems.push(`${key}: ${text}`);
+    if (!Array.isArray(c.rows) || c.rows.length !== c.fires) { note("the rows are not one per fire"); continue; }
+    let linked = true;
+    for (let i = 0; i < c.rows.length; i++) {
+      const [z, state, prev] = c.rows[i], next = await sha256Hex(`${z}|${state}|${prev}`);
+      if (i + 1 < c.rows.length ? c.rows[i + 1][2] !== next : c.head !== next) { linked = false; note(`row ${i} does not link to ${i + 1 < c.rows.length ? "the next row" : "the head"}`); break; }
+      if (i && c.rows[i - 1][0] > z) { linked = false; note(`row ${i} is earlier than the row before it`); break; }
+    }
+    seen[key] = { rows: c.rows.length, linked, machine: null };
+    if (!zeq) continue;
+    let live;
+    try { live = await zeq.readContract(c.id); } catch (e) { note(`the machine does not hold contract ${c.id}`); seen[key].machine = false; continue; }
+    const same = live.definition_sha256 === c.definition_sha256 && live.rows.length >= c.rows.length && c.rows.every((r, i) => r.join("|") === live.rows[i].join("|"));
+    if (live.definition_sha256 !== c.definition_sha256) note("the machine holds a different definition");
+    else if (!same) note("the machine's chain does not begin with these rows");
+    if (live.chain_valid !== true) note("the machine does not call its chain valid");
+    seen[key].machine = same && live.chain_valid === true;
+  }
+  return { ok: problems.length === 0, problems, contracts: seen, machineChecked: !!zeq };
+}
+
+const api = Object.freeze({ format: FORMAT, recordFormat: RECORD_FORMAT, ZeqRefusal, attach, check, audit });
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 else global.ZeqHost = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

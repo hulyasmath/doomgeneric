@@ -67,7 +67,7 @@ async function connect({ url, key, fetchImpl }) {
   }
   return Object.freeze({ format: FORMAT, url: base, machine: record.zid || null, version: health.version,
     ask: async (question) => { const r = await call("POST", "/ask", { question }); const a = r.answer || r; if (a.refused || a.verification === "refused") refuse("machine-refused", a.refused || "refused"); return a; },
-    contract, reactor });
+    readContract: (id) => call("GET", `/contracts/${encodeURIComponent(id)}`), contract, reactor });
 }
 
 const api = Object.freeze({ format: FORMAT, ZeqRefusal, connect });

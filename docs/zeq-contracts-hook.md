@@ -91,16 +91,18 @@ ZEQ_ORIGINS=http://localhost:8765 python3 zeq.py --serve 8777   # the origin the
 | Rows on the machine's chain for that contract | 69 |
 | Key found in storage, cookie, address or markup | no |
 
-**The game itself, 13 checks (`sdk/tests/test_browser_game.js`).** The WebAssembly build is served and opened in Chromium. The test connects the panel to a live machine, enters E1M1 and holds fire.
+**The game itself, 15 checks (`sdk/tests/test_browser_game.js`).** The WebAssembly build is served and opened in Chromium. The test connects the panel to a live machine, enters E1M1 and holds fire.
 
 | Measured in the played game | Result |
 |---|---|
 | Engine events that reached the panel | 24 |
-| Shots the machine accepted | 11 of 11 |
+| Events the machine accepted (11 shots, the ruleset, the level) | 13 of 13 |
 | Rows on the machine's chain, equal to the page's count | 21 |
 | Page errors | none |
 
 The build used for that run is a test build, not a release: Emscripten 3.1.6 from the distribution instead of the pinned 3.1.64, no sound library, and a build-only entry shim. The repository's older browser suites (`test_browser.js`, `test_browser_replay.js`) were not run.
+
+**Five rule sets.** Beside weapon and player, the match's record now carries its ruleset, the order of its levels (a warp is refused) and whether a save was loaded. After a played game the test takes the page's record and audits it against the machine.
 
 **The panel is the SDK's game-neutral layer.** `web/zeq-machine.js` only mounts `zeq-panel` with Doom's host description from `doom-zeq.js`. The queue, the machine calls and the record are `zeq-host`'s, the same code a tank simulation uses in the SDK repository.
 
@@ -108,6 +110,6 @@ The build used for that run is a test build, not a release: Emscripten 3.1.6 fro
 
 - The played-game test ran on a silent test build, not on a build from the pinned toolchain.
 - The run used a scratch development machine. A published proof should use the owner's machine.
-- Only two rules are mapped (weapon and player). Health pickups, doors, kills and level completion are not.
+- Five rule sets are mapped (weapon, player, ruleset, level order, save loading). Health pickups, doors and kills are not.
 - A contract proves what the machine decided and when. It does not prove a player was honest.
 - `doom1.wad` is not in the repository. It is the shareware file with SHA-256 `1d7d43be…cac771`, placed in `doomgeneric/` for the build.

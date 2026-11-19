@@ -17,7 +17,7 @@ if (!global.ZeqPanel || !global.ZeqHost || !global.ZeqBrowser || !global.ZeqDoom
 const panel = global.ZeqPanel.mount({
   host: global.ZeqDoom.hostSpec(),
   hook: "ZeqHostHook",
-  readout: (h) => `weapon ${h.contracts.weapon.state}  player ${h.contracts.player.state}  health ${h.memory.health}`,
+  readout: (h) => `weapon ${h.contracts.weapon.state}  player ${h.contracts.player.state}  health ${h.memory.health}\nruleset ${h.contracts.ruleset.state}  level E${h.memory.episode}M${h.memory.map}  run ${h.contracts.run.state}`,
 });
 /* for tests and for other panels: one flat view of the panel and the host */
 const host = () => panel.host();

@@ -27,7 +27,7 @@ const Zeq = require("../zq/zeq.js");
     const out = await Hook.decide(zeq, [rec(E.RULESET, 0, 1), rec(E.WEAPON_FIRED, 35, 1), rec(E.COOLDOWN_STARTED, 35, 49), rec(E.WEAPON_FIRED, 40, 1),
       rec(E.WEAPON_FIRED, 49, 1), rec(E.COOLDOWN_STARTED, 49, 63), rec(E.DAMAGE, 90, 20), rec(E.DAMAGE, 120, 90), rec(E.DEATH, 120, 1)]);
     const verdicts = out.decisions.map((d) => `${d.gametic}:${d.contract}:${d.verdict}`);
-    assert.deepEqual(verdicts, ["35:weapon:fired", "40:weapon:won't_fire", "49:weapon:fired", "90:player:fired", "120:player:fired"]);
+    assert.deepEqual(verdicts, ["0:ruleset:fired", "35:weapon:fired", "40:weapon:won't_fire", "49:weapon:fired", "90:player:fired", "120:player:fired"]);
     assert.equal(out.weapon.state, "cooling"); assert.equal(out.weapon.fires, 3);
     assert.equal(out.player.state, "dead"); assert.equal(out.player.fires, 2); assert.equal(out.health, -10);
     assert.ok(out.player.rows.every((r) => Number.isInteger(r[0]) && /^[0-9a-f]{64}$/.test(r[1])));
@@ -51,10 +51,12 @@ const Zeq = require("../zq/zeq.js");
       checks += 7;
       // the same match with the vanilla ruleset emits no cooldown events, so nothing reaches the weapon contract
       const vanilla = await Hook.runMatch(zeq, { maxTic: 700, commands, ruleset: 0 });
-      assert.equal(vanilla.decisions.length, 0); assert.equal(vanilla.weapon.fires, 0);
+      /* nothing reaches the weapon or the player rule, and its record never claims the Zeq ruleset */
+      assert.equal(vanilla.decisions.filter((d) => d.contract === "weapon" || d.contract === "player").length, 0); assert.equal(vanilla.weapon.fires, 0);
+      assert.ok(!vanilla.decisions.some((d) => d.contract === "ruleset" && d.state === "zeq"), "a vanilla match never puts the Zeq ruleset on its chain");
       checks += 2;
       const shots = accepted;
-      engine = `real engine on E1M1, 700 tics: ${match.engineEvents} events, ${shots.length} of ${engineShots.length} shots accepted by the machine, ${match.weapon.fires} rows on the weapon chain; vanilla ruleset: no decisions`;
+      engine = `real engine on E1M1, 700 tics: ${match.engineEvents} events, ${shots.length} of ${engineShots.length} shots accepted by the machine, ${match.weapon.fires} rows on the weapon chain; vanilla ruleset: no weapon decisions, never recorded as Zeq`;
     }
   } finally { await zeq.close(); }
   console.log(`Doom contracts OK: ${checks} checks; engine-format stream decided on a live machine; ${engine}`);

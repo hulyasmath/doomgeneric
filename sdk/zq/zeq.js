@@ -23,7 +23,7 @@ const link = require("./zeq-link.js");
 const { ZeqRefusal } = link;
 const refuse = (code, detail) => { throw new ZeqRefusal(code, detail); };
 
-function wrap(l, stop) {
+function wrap(l, stop, machine) {
   if (!l.contracts || !l.reactors) refuse("no-wire", "contracts and reactors need a machine on the wire: Zeq.local or Zeq.connect");
   /* Deploy a state contract. The handle fires transitions and reads the chain. */
   async function contract(definition) {
@@ -53,16 +53,21 @@ function wrap(l, stop) {
       close: () => l.reactors.close(d.id),
     });
   }
-  return Object.freeze({ ask: (q) => l.ask(q), find: (t) => l.find(t), verify: (s) => l.verify(s), record: () => l.record(), contract, reactor,
+  return Object.freeze({ machine: machine || null, ask: (q) => l.ask(q), find: (t) => l.find(t), verify: (s) => l.verify(s), record: () => l.record(), contract, reactor,
+    /* the machine's record of any contract it holds, by id: for an auditor who deployed nothing */
+    readContract: (id) => l.contracts.get(id),
     build: (pack, outDir, opts) => link.build(l, pack, outDir, opts), close: async () => { if (stop) stop(); } });
 }
+
+/* the machine's own name, from its public record */
+const zid = async (l) => { try { return (await l.record()).zid || null; } catch (_) { return null; } };
 
 module.exports = Object.freeze({
   ZeqRefusal,
   /* A machine already on the wire. */
-  connect: async ({ url, key }) => wrap(link.remote({ url, key }), null),
+  connect: async ({ url, key }) => { const l = link.remote({ url, key }); return wrap(l, null, await zid(l)); },
   /* A machine born in `dir` on this device: served on loopback for as long as the handle is open. */
-  local: async ({ dir, keyFile, port, pinFile, origins }) => { const m = await link.serve({ dir, keyFile, port, pinFile, origins }); return wrap(m.link, m.stop); },
+  local: async ({ dir, keyFile, port, pinFile, origins }) => { const m = await link.serve({ dir, keyFile, port, pinFile, origins }); return wrap(m.link, m.stop, await zid(m.link)); },
   /* The machine's generated mathematics, offline. */
   math: (dir, opts) => { const g = link.load(dir, opts); const out = {}; for (const [k, f] of Object.entries(g.functions)) out[k] = Object.assign((...a) => f.call(...a), f); return Object.freeze(out); },
 });

@@ -58,10 +58,11 @@ const Replay = require("../zeq-replay.js");
     const shots = events.filter((e) => e.type === 9).length;
     assert.ok(shots >= 30, `${shots} real shots`);
     assert.equal(state.events, events.length);
-    assert.equal(state.accepted, shots, "the machine accepted every shot the real engine made");
+    const other = events.filter((e) => e.type === 4 || e.type === 14).length;   /* level and ruleset events also move a rule */
+    assert.ok(state.accepted >= shots && state.accepted <= shots + other, "the machine accepted every shot the real engine made");
     assert.equal(state.refused, 0);
     assert.equal(state.weapon, "cooling"); assert.equal(state.player, "alive"); checks += 6;
-    assert.match(await page.locator("#zm-readout").innerText(), new RegExp(`events ${events.length}\\s+accepted ${shots}\\s+refused 0`)); checks++;
+    assert.match(await page.locator("#zm-readout").innerText(), new RegExp(`events ${events.length}\\s+accepted ${state.accepted}\\s+refused 0`)); checks++;
 
     /* the machine's own record of what the page sent */
     const weaponId = await page.evaluate(() => window.ZeqMachinePanel.bridge().weapon.id);
