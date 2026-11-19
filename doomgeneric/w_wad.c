@@ -20,6 +20,7 @@
 
 
 #include <ctype.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -51,6 +52,35 @@ typedef struct
     int			size;
     char		name[8];
 } PACKEDATTR filelump_t;
+
+// Signed content is copied into immutable host-owned memory before it reaches
+// this reader. No pathname is reopened after verification.
+typedef struct
+{
+    wad_file_t wad;
+} memory_wad_file_t;
+
+static void W_MemoryCloseFile(wad_file_t *wad)
+{
+    free(wad->mapped);
+    free(wad);
+}
+
+static size_t W_MemoryRead(wad_file_t *wad, unsigned int offset,
+                           void *buffer, size_t buffer_len)
+{
+    if (offset > wad->length || buffer_len > (size_t)wad->length - offset)
+        return 0;
+    memcpy(buffer, wad->mapped + offset, buffer_len);
+    return buffer_len;
+}
+
+static wad_file_class_t memory_wad_file =
+{
+    NULL,
+    W_MemoryCloseFile,
+    W_MemoryRead,
+};
 
 //
 // GLOBALS
@@ -136,27 +166,16 @@ static void ExtendLumpInfo(int newnumlumps)
 // Other files are single lumps with the base filename
 //  for the lump name.
 
-wad_file_t *W_AddFile (char *filename)
+static wad_file_t *W_AddFileHandle(wad_file_t *wad_file, char *filename)
 {
     wadinfo_t header;
     lumpinfo_t *lump_p;
     unsigned int i;
-    wad_file_t *wad_file;
     int length;
     int startlump;
     filelump_t *fileinfo;
     filelump_t *filerover;
     int newnumlumps;
-
-    // open the file and add to directory
-
-    wad_file = W_OpenFile(filename);
-
-    if (wad_file == NULL)
-    {
-		printf (" couldn't open %s\n", filename);
-		return NULL;
-    }
 
     newnumlumps = numlumps;
 
@@ -169,37 +188,37 @@ wad_file_t *W_AddFile (char *filename)
         // them back.  Effectively we're constructing a "fake WAD directory"
         // here, as it would appear on disk.
 
-		fileinfo = Z_Malloc(sizeof(filelump_t), PU_STATIC, 0);
-		fileinfo->filepos = LONG(0);
-		fileinfo->size = LONG(wad_file->length);
+			fileinfo = Z_Malloc(sizeof(filelump_t), PU_STATIC, 0);
+			fileinfo->filepos = LONG(0);
+			fileinfo->size = LONG(wad_file->length);
 
         // Name the lump after the base of the filename (without the
         // extension).
 
-		M_ExtractFileBase (filename, fileinfo->name);
-		newnumlumps++;
+			M_ExtractFileBase (filename, fileinfo->name);
+			newnumlumps++;
     }
     else 
     {
     	// WAD file
         W_Read(wad_file, 0, &header, sizeof(header));
 
-		if (strncmp(header.identification,"IWAD",4))
-		{
-			// Homebrew levels?
-			if (strncmp(header.identification,"PWAD",4))
+			if (strncmp(header.identification,"IWAD",4))
 			{
-			I_Error ("Wad file %s doesn't have IWAD "
-				 "or PWAD id\n", filename);
+				// Homebrew levels?
+				if (strncmp(header.identification,"PWAD",4))
+				{
+				I_Error ("Wad file %s doesn't have IWAD "
+					 "or PWAD id\n", filename);
+				}
+
+				// ???modifiedgame = true;
 			}
 
-			// ???modifiedgame = true;
-		}
-
-		header.numlumps = LONG(header.numlumps);
-		header.infotableofs = LONG(header.infotableofs);
-		length = header.numlumps*sizeof(filelump_t);
-		fileinfo = Z_Malloc(length, PU_STATIC, 0);
+			header.numlumps = LONG(header.numlumps);
+			header.infotableofs = LONG(header.infotableofs);
+			length = header.numlumps*sizeof(filelump_t);
+			fileinfo = Z_Malloc(length, PU_STATIC, 0);
 
         W_Read(wad_file, header.infotableofs, fileinfo, length);
         newnumlumps += header.numlumps;
@@ -215,14 +234,14 @@ wad_file_t *W_AddFile (char *filename)
 
     for (i=startlump; i<numlumps; ++i)
     {
-		lump_p->wad_file = wad_file;
-		lump_p->position = LONG(filerover->filepos);
-		lump_p->size = LONG(filerover->size);
-			lump_p->cache = NULL;
-		strncpy(lump_p->name, filerover->name, 8);
+			lump_p->wad_file = wad_file;
+			lump_p->position = LONG(filerover->filepos);
+			lump_p->size = LONG(filerover->size);
+				lump_p->cache = NULL;
+			strncpy(lump_p->name, filerover->name, 8);
 
-			++lump_p;
-			++filerover;
+				++lump_p;
+				++filerover;
     }
 
     Z_Free(fileinfo);
@@ -234,6 +253,39 @@ wad_file_t *W_AddFile (char *filename)
     }
 
     return wad_file;
+}
+
+wad_file_t *W_AddFile(char *filename)
+{
+    wad_file_t *wad_file = W_OpenFile(filename);
+
+    if (wad_file == NULL)
+    {
+        printf(" couldn't open %s\n", filename);
+        return NULL;
+    }
+    return W_AddFileHandle(wad_file, filename);
+}
+
+wad_file_t *W_AddMemoryFile(void *data, size_t length)
+{
+    memory_wad_file_t *memory;
+
+    if (!data || !length || length > UINT_MAX)
+    {
+        free(data);
+        return NULL;
+    }
+    memory = malloc(sizeof(*memory));
+    if (!memory)
+    {
+        free(data);
+        return NULL;
+    }
+    memory->wad.file_class = &memory_wad_file;
+    memory->wad.mapped = data;
+    memory->wad.length = (unsigned int)length;
+    return W_AddFileHandle(&memory->wad, "zeq-verified-memory.wad");
 }
 
 
@@ -343,16 +395,16 @@ void W_ReadLump(unsigned int lump, void *dest)
 {
     int c;
     lumpinfo_t *l;
-	
+		
     if (lump >= numlumps)
     {
 	I_Error ("W_ReadLump: %i >= numlumps", lump);
     }
 
     l = lumpinfo+lump;
-	
+		
     I_BeginRead ();
-	
+		
     c = W_Read(l->wad_file, l->position, dest, l->size);
 
     if (c < l->size)
@@ -417,7 +469,7 @@ void *W_CacheLumpNum(int lumpnum, int tag)
 	W_ReadLump (lumpnum, lump->cache);
         result = lump->cache;
     }
-	
+		
     return result;
 }
 
@@ -484,8 +536,8 @@ void W_Profile (void)
     FILE*	f;
     int		j;
     char	name[9];
-	
-	
+		
+		
     for (i=0 ; i<numlumps ; i++)
     {	
 	ptr = lumpinfo[i].cache;
