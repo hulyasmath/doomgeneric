@@ -5,6 +5,19 @@ simulation can adopt exact Zeq time and deterministic lapse physics, the explici
 labeled legacy carrier approximation, a hash-chained event ledger, and local proof
 export — using Doom (`doomgeneric`) as the proof-of-concept launchpad.
 
+**Repository boundary:** the portable SDK is distributed from
+`hulyasmath/zeq-doomgeneric`; the complete playable reference host remains in
+`hulyasmath/doomgeneric`. The SDK repository is not a second Doom game mirror.
+Portable modules, schemas, vectors, tests, and guides are versioned independently
+and consumed by the reference host through an explicit release identity.
+
+Read the [consolidated Phase 0–13 roadmap](../docs/zeq-roadmap-v1.md) and the
+[third-party integration guide](../docs/zeq-sdk-integration-v1.md) before adopting
+the SDK. Current time, replay, evidence, save, and content APIs are documented
+there with their exact boundaries. Unit/dimensional analysis, scientific numerical
+methods, generalized contracts/plugins, and second-engine validation are Phases
+9–13 and are not yet shipped portable APIs.
+
 The architecture is split cleanly in two:
 
 ```
@@ -112,7 +125,8 @@ node zeq-kernel.js --verify run-….zeqproof.json      # same, for exports
 
 ## Real headless replay and MCP (Phase 4)
 
-Build the native null-platform engine and run its regression suites:
+From the separate `hulyasmath/doomgeneric` reference-host checkout, build the
+native null-platform engine and run its regression suites:
 
 ```sh
 sh build-headless.sh
@@ -145,7 +159,7 @@ node sdk/zeq-mcp.js --allow-run --allow-input
 
 The current replay scope is a fresh single-player E1M1 run with the installed
 shareware WAD. Browser/WASM checkpoint identity is tested separately, never inferred
-from native-only results. With `dist/` served on port 8765, run:
+from native-only results. With the reference host's `dist/` served on port 8765, run:
 
 ```sh
 node sdk/tests/test_browser_replay.js
@@ -181,7 +195,7 @@ python3 sdk/tests/test_content.py   # independently generates the public vector
 node sdk/tests/test_content.js      # 12 SDK checks + exact Python interop
 ```
 
-The browser ledger's **TEST PHASE 5 SDK** button runs the same 12-check suite.
+The reference host browser ledger's **TEST PHASE 5 SDK** button runs the same 12-check suite.
 This is not the engine loader milestone: no content has yet been passed to Doom's
 `W_AddFile`. A later loader must verify every digest/size and supply the same
 immutable bytes to the engine, define WAD lump ordering, and prevent TOCTOU
@@ -204,7 +218,7 @@ keep replay `unavailable`; no headless Doom reproduction is implied.
 
 ## Doom reference mapping
 
-The shipped `doomgeneric` fork wires the SDK concepts into the real engine:
+The separately maintained `doomgeneric` reference host wires the SDK concepts into the real engine:
 
 | SDK concept            | Doom implementation                                             |
 | ---------------------- | --------------------------------------------------------------- |
