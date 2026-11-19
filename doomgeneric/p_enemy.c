@@ -160,7 +160,6 @@ P_NoiseAlert
 
 
 
-
 //
 // P_CheckMeleeRange
 //
@@ -1807,6 +1806,12 @@ A_CloseShotgun2
 mobj_t*		braintargets[32];
 int		numbraintargets;
 int		braintargeton = 0;
+static int brain_spit_easy;
+
+int P_BrainSpitParity(void)
+{
+    return brain_spit_easy;
+}
 
 void A_BrainAwake (mobj_t* mo)
 {
@@ -1901,10 +1906,8 @@ void A_BrainSpit (mobj_t*	mo)
     mobj_t*	targ;
     mobj_t*	newmobj;
     
-    static int	easy = 0;
-	
-    easy ^= 1;
-    if (gameskill <= sk_easy && (!easy))
+    brain_spit_easy ^= 1;
+    if (gameskill <= sk_easy && (!brain_spit_easy))
 	return;
 		
     // shoot a cube at current target
