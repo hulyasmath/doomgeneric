@@ -6,6 +6,27 @@ and frame comes from the unmodified shareware `doom1.wad`; the upgrades hook int
 real engine paths (`P_FireWeapon`, `P_DamageMobj`, `P_KillMobj`, `P_MovePlayer`,
 `G_DoLoadLevel`, save/load).
 
+## Program map and repository ownership
+
+- **[Consolidated Phase 0–13 roadmap](docs/zeq-roadmap-v1.md)** — the controlling
+  scope, dependency order, acceptance gates, and precise implementation status.
+- **[Third-party SDK integration guide](docs/zeq-sdk-integration-v1.md)** — the
+  engine-neutral adapter, arithmetic, units, replay, evidence, security, and
+  conformance contract for existing games and simulations.
+- **[Doom protocol specification](docs/zeq-doomgeneric-protocol-v1.md)** — exact
+  wire formats and Doom-specific integration rules.
+
+`hulyasmath/doomgeneric` owns the complete game and reference integration.
+`hulyasmath/zeq-doomgeneric` is the portable SDK distribution: portable modules,
+schemas, vectors, tests, and integration guides, without a second maintained Doom
+game tree. The repositories align by SDK release identity, not by mirroring every
+engine file into both projects.
+
+Phases 0–4 and the Phase 5 signed-content/sealed-parcel SDK milestone are
+implemented and tested as described below. Full Phase 5 engine loading and Phases
+6–13 are not implemented. The roadmap distinguishes partial, pending, and proposed
+work so future framework capabilities are not presented as shipping features.
+
 ## What the Zeq layer adds
 
 - **Exact zeq-time-v1 arithmetic (Phase 1)** — the real C engine computes the
