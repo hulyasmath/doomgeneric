@@ -44,6 +44,7 @@
 #include "zeq_capture.h"
 #ifdef ZEQ_HEADLESS
 #include "zeq_headless.h"
+#include "zeq_net.h"
 #endif
 #include "p_saveg.h"
 #include "p_tick.h"
@@ -239,10 +240,10 @@ int G_CmdChecksum (ticcmd_t* cmd)
 { 
     size_t		i;
     int		sum = 0; 
-		 
+			 
     for (i=0 ; i< sizeof(*cmd)/4 - 1 ; i++) 
 	sum += ((int *)cmd)[i]; 
-			 
+				 
     return sum; 
 } 
 
@@ -338,7 +339,14 @@ void G_BuildTiccmd (ticcmd_t* cmd, int maketic)
 
 #ifdef ZEQ_HEADLESS
     if (ZEQ_HeadlessBuildTiccmd(cmd, maketic))
+    {
+        // Network peers authenticate the original Doom consistency byte. A
+        // prerecorded replay keeps its recorded byte, but a live network
+        // command must carry the value expected by the receiving peer.
+        if (ZEQ_NetEnabled())
+            cmd->consistancy = consistancy[consoleplayer][maketic%BACKUPTICS];
         return;
+    }
 #endif
 
     cmd->consistancy = 
@@ -479,6 +487,13 @@ void G_BuildTiccmd (ticcmd_t* cmd, int maketic)
     }
 
     next_weapon = 0;
+
+    // Browser analog sources are still authoritative Doom input. Apply their
+    // integer-scaled values before the ordinary MAXPLMOVE clamp; replay
+    // captures the resulting final ticcmd exactly like keyboard/mouse input.
+    ZEQ_ApplyAnalogMove(cmd, &forward, &side,
+                        forwardmove[speed], sidemove[speed], angleturn[tspeed],
+                        strafe);
 
     // mouse
     if (mousebuttons[mousebforward]) 
@@ -1252,7 +1267,6 @@ void G_DeathMatchSpawnPlayer (int playernum)
 	    return; 
 	} 
     } 
-	 
     // no good spot, so the player will probably get stuck 
     P_SpawnPlayer (&playerstarts[playernum]); 
 } 
@@ -1359,7 +1373,7 @@ void G_SecretExitLevel (void)
 void G_DoCompleted (void) 
 { 
     int             i; 
-	 
+ 
     gameaction = ga_nothing; 
  
     for (i=0 ; i<MAXPLAYERS ; i++) 
