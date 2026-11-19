@@ -1,4 +1,4 @@
 Zeq SDK (zq track), copied from hulyasmath/zeq-doomgeneric
-branch claude/zeqond-native-hilbert-sdk, commit 0d4f7e1
+branch claude/zeqond-native-hilbert-sdk, commit 857c942
 files: zeq.js, zeq-link.js, examples/doom/doom-zeq.js
 Do not edit here. Change the SDK repository and copy again.

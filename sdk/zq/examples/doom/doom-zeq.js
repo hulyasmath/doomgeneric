@@ -7,7 +7,10 @@
  * Zeq machine holds, decides and chains.
  *
  *   WEAPON_FIRED (9)      value = weapon id        weapon:  ready -> cooling
- *   COOLDOWN_STARTED (13) value = ready gametic    remembered as the tic the weapon is ready
+ *   COOLDOWN_STARTED (13) value = ready gametic    the tic from which the weapon may fire again.
+ *                                                  The real engine emits it just before the WEAPON_FIRED
+ *                                                  of the same tic, so it belongs to that shot and takes
+ *                                                  effect after it; the other order is handled too.
  *   DAMAGE (5)            value = damage           player:  alive -> hurt, or -> dead
  *   DEATH (6)             value = map              player:  -> dead
  *
@@ -38,7 +41,7 @@ const PLAYER = Object.freeze({ name: "doom.player", version: "1",
 /* `zeq` is a handle from Zeq.local or Zeq.connect. */
 async function createDoomBridge(zeq, { health = 100 } = {}) {
   const weapon = await zeq.contract(WEAPON), player = await zeq.contract(PLAYER);
-  let readyTic = 0, hp = health;
+  let readyTic = 0, hp = health, lastFireTic = -1, pending = null;
   const fired = [];
   const note = (event, contract, r) => { const out = { contract, ...r }; fired.push({ tic: event.gametic ?? event.tic, type: event.type, ...out }); return out; };
   /* Feed one engine event. Returns what the machine decided, or null when the event moves no contract. */
@@ -46,10 +49,16 @@ async function createDoomBridge(zeq, { health = 100 } = {}) {
     const tic = event.gametic ?? event.tic;
     if (!Number.isInteger(event.type) || !Number.isInteger(tic) || !Number.isInteger(event.value)) throw new TypeError("a Doom event is {type, gametic, phase, value}, all integers");
     switch (event.type) {
-      case EVENT.COOLDOWN_STARTED: readyTic = event.value; return null;
+      case EVENT.COOLDOWN_STARTED:
+        if (tic === lastFireTic) readyTic = event.value;          // announced after its shot
+        else pending = { tic, value: event.value };                // announced before its shot (the real engine's order)
+        return null;
       case EVENT.WEAPON_FIRED: {
         if (weapon.state === "cooling") { const back = note(event, "weapon", await weapon.fire("ready", { tic, ready_tic: readyTic })); if (!back.fired) return back; }
-        return note(event, "weapon", await weapon.fire("cooling", { weapon: event.value, tic }));
+        const shot = note(event, "weapon", await weapon.fire("cooling", { weapon: event.value, tic }));
+        if (shot.fired) { lastFireTic = tic; if (pending && pending.tic === tic) readyTic = pending.value; }
+        pending = null;
+        return shot;
       }
       case EVENT.DAMAGE: {
         if (player.state === "dead") return null;

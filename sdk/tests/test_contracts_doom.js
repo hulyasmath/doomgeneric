@@ -38,13 +38,23 @@ const Zeq = require("../zq/zeq.js");
       /* the real C engine: hold fire for 20 seconds of game time on E1M1 */
       const commands = []; for (let tic = 0; tic < 700; tic++) commands.push({ gametic: tic, forwardmove: 0, sidemove: 0, angleturn: 0, chatchar: 0, buttons: 1, consistancy: 0, buttons2: 0, inventory: 0, lookfly: 0, arti: 0 });
       const match = await Hook.runMatch(zeq, { maxTic: 700, commands });
-      const shots = match.decisions.filter((d) => d.contract === "weapon" && d.fired);
+      const engineShots = match.decisions.filter((d) => d.type === Hook.EVENT.WEAPON_FIRED);
+      const accepted = engineShots.filter((d) => d.fired);
       assert.ok(match.engineEvents > 0, "the engine emitted events");
-      assert.ok(shots.length > 0, "the machine decided at least one shot from the real engine");
-      assert.equal(match.weapon.fires, shots.length);
-      assert.ok(match.weapon.rows.length === shots.length);
-      checks += 4;
-      engine = `real engine: ${match.engineEvents} events, ${match.decisions.length} decisions, ${shots.length} weapon fires on the chain, run ${match.run.run_id}`;
+      assert.ok(engineShots.length >= 30, `the engine fired ${engineShots.length} shots in 700 tics`);
+      assert.equal(accepted.length, engineShots.length, "the machine accepted every shot the real engine made: the engine obeys its own cooldown");
+      // each shot after the first is two rows: cooling -> ready (the cooldown has elapsed), then ready -> cooling
+      assert.equal(match.weapon.fires, 2 * accepted.length - 1);
+      assert.equal(match.weapon.rows.length, match.weapon.fires);
+      assert.ok(match.weapon.rows.every((r, i) => i === 0 || r[0] >= match.weapon.rows[i - 1][0]), "Zeqonds on the chain never decrease");
+      assert.equal(match.player.state, "alive");
+      checks += 7;
+      // the same match with the vanilla ruleset emits no cooldown events, so nothing reaches the weapon contract
+      const vanilla = await Hook.runMatch(zeq, { maxTic: 700, commands, ruleset: 0 });
+      assert.equal(vanilla.decisions.length, 0); assert.equal(vanilla.weapon.fires, 0);
+      checks += 2;
+      const shots = accepted;
+      engine = `real engine on E1M1, 700 tics: ${match.engineEvents} events, ${shots.length} of ${engineShots.length} shots accepted by the machine, ${match.weapon.fires} rows on the weapon chain; vanilla ruleset: no decisions`;
     }
   } finally { await zeq.close(); }
   console.log(`Doom contracts OK: ${checks} checks; engine-format stream decided on a live machine; ${engine}`);
