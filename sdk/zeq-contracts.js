@@ -9,7 +9,9 @@
  * SDK's Doom contracts on a machine, which decides each transition and chains
  * each fire on its Zeqond clock.
  *
- *   node sdk/zeq-contracts.js --machine DIR --key KEYFILE [--max-tic 700]
+ *   node sdk/zeq-contracts.js --machine DIR --key KEYFILE [--max-tic 700] [--hold-fire]
+ *
+ * Without input the player stands still and nothing is decided; --hold-fire holds the trigger.
  *
  * The browser game has the same hook: web/zeq.js calls window.ZeqHostHook
  * with each event, if a page defines it.
@@ -60,8 +62,10 @@ if (require.main === module) {
   (async () => {
     const zeq = await Zeq.local({ dir: path.resolve(dir), keyFile: path.resolve(keyFile), port: Number(arg("--port", 8794)) });
     try {
-      const out = await runMatch(zeq, { maxTic: Number(arg("--max-tic", 700)) });
-      console.log(JSON.stringify({ run_id: out.run.run_id, engine_events: out.engineEvents, decisions: out.decisions.length, weapon: { state: out.weapon.state, fires: out.weapon.fires }, player: { state: out.player.state, fires: out.player.fires }, health: out.health }, null, 1));
+      const maxTic = Number(arg("--max-tic", 700)), options = { maxTic };
+      if (process.argv.includes("--hold-fire")) options.commands = Array.from({ length: maxTic }, (_, gametic) => ({ gametic, forwardmove: 0, sidemove: 0, angleturn: 0, chatchar: 0, buttons: 1, consistancy: 0, buttons2: 0, inventory: 0, lookfly: 0, arti: 0 }));
+      const out = await runMatch(zeq, options);
+      console.log(JSON.stringify({ run_id: out.run.run_id, engine_events: out.engineEvents, decisions: out.decisions.length, accepted: out.decisions.filter((d) => d.fired).length, refused: out.decisions.filter((d) => !d.fired).length, weapon: { state: out.weapon.state, fires: out.weapon.fires }, player: { state: out.player.state, fires: out.player.fires }, health: out.health }, null, 1));
     } finally { await zeq.close(); }
   })().catch((error) => { console.error(error.message); process.exit(1); });
 }

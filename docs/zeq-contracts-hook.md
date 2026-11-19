@@ -37,7 +37,7 @@ python3 zeq.py --key issue doom write
 
 # the real engine, decided on that machine
 sh build-headless.sh                     # needs doom1.wad in doomgeneric/
-node sdk/zeq-contracts.js --machine /path/to/machine --key /path/to/keyfile --max-tic 700
+node sdk/zeq-contracts.js --machine /path/to/machine --key /path/to/keyfile --max-tic 700 --hold-fire
 ```
 
 ## Test
