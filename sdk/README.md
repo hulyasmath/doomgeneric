@@ -90,6 +90,43 @@ zeqond(gametic)       = gametic * 777 / period                → seconds of 0.7
 The C and JS implementations were conformance-tested to produce identical
 values for Doom's 35 Hz tick (and for 60 Hz hosts).
 
+## Clean checkout: generate, build, and test
+
+The large sine and physics vectors are reproducible build products, not
+hand-maintained source. From the SDK repository root, install the generator
+and independent-vector test dependencies, regenerate every table, and run the
+conformance suites in this order:
+
+```sh
+python3 -m pip install mpmath cryptography
+python3 sdk/zeq_time.py --generate
+python3 sdk/zeq_physics.py --generate
+
+cc -std=c11 -O2 -Wall -Wextra -Werror -I sdk \
+  sdk/tests/test_time.c sdk/zeq_time.c -o /tmp/zeq-test-time
+/tmp/zeq-test-time
+cc -std=c11 -O2 -Wall -Wextra -Werror -I sdk \
+  sdk/tests/test_physics.c sdk/zeq_physics.c sdk/zeq_time.c -o /tmp/zeq-test-physics
+/tmp/zeq-test-physics
+
+python3 sdk/tests/test_time.py
+python3 sdk/tests/test_physics.py
+node sdk/tests/test_time.js
+node sdk/tests/test_physics.js
+python3 sdk/tests/test_security.py
+python3 sdk/tests/test_content.py
+node sdk/tests/test_security.js
+node sdk/tests/test_content.js
+node sdk/tests/test_sidecar.js
+```
+
+The C implementation requires checked compiler 128-bit integers. Node.js 20 or
+later is recommended. The two Python vector tests regenerate the small checked-in
+security/content fixtures independently; the JavaScript suites must reproduce
+those exact bytes. `test_sidecar.js` creates temporary local identities and
+removes them after the test. The real Doom replay and MCP suites are run from
+the reference-host checkout as described below, not from this SDK-only tree.
+
 ## The bridge protocol (JSON-RPC 2.0 over WebSocket)
 
 Browser WASM cannot open raw TCP sockets — Emscripten maps sockets onto
