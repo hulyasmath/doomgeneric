@@ -1,7 +1,7 @@
 # Zeq Program Roadmap v1
 
-Status: canonical planning document, 19 November 2026
-Reference source snapshot: `7e7c61b229717b8653a550c7805ced801cb003e8`
+Status: canonical planning document, 20 November 2026
+Reference source snapshot: `1a5e172fb2edb76c2e03234eb93aaaf187192f9b`
 Scope: Phases 0–13, repository ownership, release gates, and adoption boundaries
 
 ## 1. Purpose and non-negotiable rules
@@ -57,7 +57,7 @@ It must not contain a second maintained Doom engine tree, game WADs, the game br
 
 A release aligns the repositories by SDK version and source identity, not by copying an entire repository over the other. Portable changes land in the SDK repository; Doom-only changes land in the game repository. Roadmap/status changes are mirrored. A game release records the SDK version, schema versions, source commit, and test evidence it consumes.
 
-The current Phase 5 source snapshot predates this ownership split. Completing the split and verifying both remote trees is a repository-hardening deliverable, not evidence that later phases are implemented.
+The initial Phase 5 source snapshot predated this ownership split. The split and both remote tree verifications are complete; that repository-hardening work is not evidence that later phases are implemented.
 
 ## 3. Status vocabulary
 
@@ -169,7 +169,7 @@ Not claimed: deterministic multiplayer, rollback, a completed 20 Hz bot schedule
 
 ### Phase 5 — Signed content and sealed parcels
 
-**Status: partial. The SDK milestone is implemented and tested; engine loading is pending.**
+**Status: partial. The SDK and single signed-PWAD engine-loading milestones are implemented and tested; multi-file/PK3 loading and remaining hardening are pending.**
 
 Implemented SDK deliverables:
 
@@ -182,14 +182,24 @@ Implemented SDK deliverables:
 - `parcel_id = SHA256(JCS(complete_parcel))`;
 - twelve SDK checks passing in Node and the browser test environment.
 
+Implemented and tested reference-host deliverables:
+
+- one signed PWAD per accepted `doomgeneric-zeq-v1` manifest, no dependencies, and compatibility with the active ruleset;
+- SDK verification of the canonical signature, explicit publisher trust, file size, and SHA-256 before the engine call;
+- an engine-owned byte copy, independent C SHA-256 verification, and structural bounds checks for the PWAD header, directory, and every lump range;
+- memory-backed Doom lump reads from the same owned bytes, without reopening a mutable pathname;
+- `zeq-content-load-evidence-v1` records for publisher trust, content identity, ruleset compatibility, lump counts, and load result in the local evidence chain;
+- browser integration tests covering a real marker-lump load/read-back and fail-closed wrong-trust, modified-byte, incompatible-ruleset, malformed-WAD, direct C digest-mismatch, and duplicate-load cases;
+- native replay/MCP, browser/native canonical replay, gameplay, capsule-restore, desktop, and mobile regressions passing with zero browser console or HTTP errors.
+
 Remaining gates:
 
-1. Verify a signed WAD and load the same verified bytes into the real engine with a TOCTOU-safe handoff.
-2. Record publisher trust, content identity, ruleset compatibility, and load result in evidence.
-3. Add a bounded PK3 reader only after signed WAD loading works; reject traversal, absolute paths, duplicate ambiguity, decompression bombs, and unsupported content.
-4. Prove malformed manifests, wrong trust, hash mismatch, modified files, replayed parcels, expired parcels, wrong recipients, and resource-limit violations fail closed.
+1. Add a bounded PK3 reader; reject traversal, absolute paths, duplicate ambiguity, decompression bombs, and unsupported content.
+2. Extend the verified-byte handoff to explicitly specified multi-file mods and their load order.
+3. Complete malformed-manifest, resource-limit, adversarial WAD, and lifetime hardening beyond the current integration vectors.
+4. Retain the SDK parcel gates for replayed parcels, expired parcels, wrong recipients, authenticated-data tampering, and bounded inboxes.
 
-Not claimed: no verified immutable bytes have yet reached `W_AddFile`; PK3 is unsupported; parcels never execute or automatically load plaintext.
+Not claimed: multi-file or PK3 loading, arbitrary native/code mods, automatic content execution, or parcel auto-loading. Signed content is session-local; signature validity is not publisher trust or a safety guarantee.
 
 ### Phase 6 — Deterministic networking and rollback
 
@@ -363,6 +373,6 @@ Each added module must justify its state, schema, dependencies, resource cost, a
 
 ## 10. Current honest position
 
-The project has a working real-Doom reference foundation through Phase 4 and a tested Phase 5 signed-content/sealed-parcel SDK milestone. Full signed engine content loading, deterministic networking/rollback, strict rendering integrity, Phase 8 closeout, and Phases 9–13 remain unfinished. Repository restructuring and clean WASM toolchain verification are release work, not completed game features.
+The project has a working real-Doom reference foundation through Phase 4, a tested Phase 5 signed-content/sealed-parcel SDK milestone, and a tested single-PWAD reference-host loader. Multi-file/PK3 engine content loading, deterministic networking/rollback, strict rendering integrity, Phase 8 closeout, and Phases 9–13 remain unfinished. Repository restructuring and clean WASM toolchain verification are release work, not completed game features.
 
 This roadmap is the controlling scope document for subsequent implementation. More detailed protocol documents define exact bytes and APIs; if a status statement conflicts with tested code, the status must be corrected rather than the claim inflated.

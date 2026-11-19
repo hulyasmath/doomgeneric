@@ -24,10 +24,11 @@ schemas, vectors, tests, and integration guides, without a second maintained Doo
 game tree. The repositories align by SDK release identity, not by mirroring every
 engine file into both projects.
 
-Phases 0–4 and the Phase 5 signed-content/sealed-parcel SDK milestone are
-implemented and tested as described below. Full Phase 5 engine loading and Phases
-6–13 are not implemented. The roadmap distinguishes partial, pending, and proposed
-work so future framework capabilities are not presented as shipping features.
+Phases 0–4, the Phase 5 signed-content/sealed-parcel SDK milestone, and the
+single signed-PWAD reference-host loader are implemented and tested as described
+below. Multi-file/PK3 loading, remaining Phase 5 hardening, and Phases 6–13 are
+not implemented. The roadmap distinguishes partial, pending, and proposed work so
+future framework capabilities are not presented as shipping features.
 
 ## What the Zeq layer adds
 
@@ -82,14 +83,18 @@ work so future framework capabilities are not presented as shipping features.
   replay scope is fresh single-player E1M1. The separate browser-to-native gate
   exports actual browser input and requires equal canonical hashes at matching
   completed tics with the real renderer enabled.
-- **Signed-content SDK (Phase 5 milestone)** — `zeq-content.js` implements
-  Ed25519-signed mod manifests, explicit publisher trust, bound file sizes and
-  SHA-256 digests, safe relative paths, machine records, and expiring sealed
-  parcels using X25519, HKDF-SHA256, and AES-256-GCM. Parcel replay, wrong
-  recipients, modified headers/ciphertext, and expiry are rejected. Independent
-  Python and JavaScript vectors match exactly. This milestone does not load mods
-  into Doom: verified immutable WAD delivery to `W_AddFile`, lump ordering, and
-  PK3 support remain pending.
+- **Signed content and single-PWAD loading (Phase 5)** — `zeq-content.js`
+  implements Ed25519-signed mod manifests, explicit publisher trust, bound file
+  sizes and SHA-256 digests, safe relative paths, machine records, and expiring
+  sealed parcels using X25519, HKDF-SHA256, and AES-256-GCM. Independent Python
+  and JavaScript vectors match exactly. The reference host additionally accepts a
+  compatible `doomgeneric-zeq-v1` manifest containing exactly one PWAD and no
+  dependencies. After SDK verification, the C engine copies the bytes,
+  independently recomputes SHA-256, bounds-checks the PWAD directory and every
+  lump, and installs the same owned buffer through a memory-backed WAD reader.
+  `zeq-content-load-evidence-v1` records trust, ruleset, content identity, and the
+  result in the signed local evidence chain. Multi-file mods and PK3 remain
+  pending; parcels never execute or automatically load plaintext.
 - **Browser shell** — scalable viewport, live same-tic conformance panel,
   ruleset/cooldown/impulse diagnostics, pointer-lock mouse aim, resilient keyboard
   and touch controls, and original MIDI music via bundled freepats instruments.
@@ -161,15 +166,19 @@ export, verification, and secret rejection. With the browser preview served on
 port 8765, `node sdk/tests/test_browser_replay.js` additionally exports actual
 browser `ticcmd_t` records, replays them in the native C engine, and requires the
 WASM/native canonical hashes to match. The test also drives movement, turning,
-and firing with the real renderer enabled. Build scripts regenerate all large
-arithmetic vectors from the committed Python generators; generated outputs and
-WAD/build artifacts are not source-controlled.
+and firing with the real renderer enabled. `node tests/test_browser_content.js`
+signs a conformance-only PWAD, exercises the visible load form, reads its marker
+lump back through Doom, and requires wrong-trust, modified-byte,
+incompatible-ruleset, malformed-WAD, independent C digest-mismatch, and duplicate
+loads to fail closed. Build scripts regenerate all large arithmetic vectors from
+the committed Python generators; generated outputs and WAD/build artifacts are
+not source-controlled.
 
 ## Limitations (by design)
 
 - Single-player only; no netcode.
-- Phase 5 currently provides signed-content SDK verification only; Doom cannot
-  yet load signed WADs, and PK3 is unsupported. Parcels never execute content.
+- Phase 5 loads exactly one verified PWAD per accepted manifest in the reference
+  host. Multi-file mods and PK3 are unsupported. Parcels never execute content.
 - The ledger is tamper-evident, not tamper-proof; it cannot prove a clean run.
 - Saves and settings live in this browser only.
 - Shareware episode (Knee-Deep in the Dead) from the unmodified id Software WAD.
@@ -192,12 +201,12 @@ Create a file named doomgeneric_yourplatform.c and just implement these function
 
 |Functions            |Description|
 |---------------------|-----------|
-|DG_Init              |Initialize your platfrom (create window, framebuffer, etc...).
-|DG_DrawFrame         |Frame is ready in DG_ScreenBuffer. Copy it to your platform's screen.
-|DG_SleepMs           |Sleep in milliseconds.
-|DG_GetTicksMs        |The ticks passed since launch in milliseconds.
-|DG_GetKey            |Provide keyboard events.
-|DG_SetWindowTitle    |Not required. This is for setting the window title as Doom sets this from WAD file.
+|DG_Init              |Initialize your platfrom (create window, framebuffer, etc...).|
+|DG_DrawFrame         |Frame is ready in DG_ScreenBuffer. Copy it to your platform's screen.|
+|DG_SleepMs           |Sleep in milliseconds.|
+|DG_GetTicksMs        |The ticks passed since launch in milliseconds.|
+|DG_GetKey            |Provide keyboard events.|
+|DG_SetWindowTitle    |Not required. This is for setting the window title as Doom sets this from WAD file.|
 
 ### main loop
 At start, call doomgeneric_Create().

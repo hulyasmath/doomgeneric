@@ -458,6 +458,18 @@ The first implementation accepts WAD files with a defined lump behavior. PK3 req
 
 A valid signature proves possession of a signing key for the manifest. It does not prove that a mod is safe, compatible, or appropriate to trust.
 
+### 13.3 Implemented single-PWAD reference-host profile
+
+The current browser reference host accepts exactly one `.wad` file per manifest, requires `engine_api = "doomgeneric-zeq-v1"` and an empty dependency list, and requires the manifest to declare the active ruleset. Other manifests are refused before the engine handoff. Multi-file load order and PK3 remain unspecified and unsupported.
+
+The SDK verifies the canonical Ed25519 signature, the user's explicit publisher-key trust decision, declared size, and file SHA-256. The engine then receives the verified bytes and expected identity metadata. `ZEQ_LoadVerifiedWad` copies the input before hashing or parsing, independently recomputes SHA-256 in C, and validates the `PWAD` signature, directory extent, and every lump position/size range. At most 64 MiB and 65536 lumps are accepted by this adapter.
+
+`W_AddMemoryFile` takes ownership of the verified allocation and installs it in Doom's ordinary lump directory. Its memory-backed `Read` implementation checks every offset/length against the immutable buffer; no pathname is reopened and no subsequent lump read uses the caller's temporary WASM allocation. The ordinary path-based `W_AddFile` behavior remains available for the base game.
+
+Each attempt produces `zeq-content-load-evidence-v1` with schema version, status, explicit trust, active ruleset and compatibility, digest-verification result, mod ID/version, publisher key ID, content SHA-256, accepted WAD lump count, and total engine lump count. Browser records include this evidence in the signed local event chain. A load result does not change replay status: telemetry-only proofs remain `unavailable` unless actual reproduction is supplied.
+
+The integration gate loads a real conformance-only marker PWAD through the visible form, reads its exact bytes back through `W_ReadLump`, verifies ledger/proof consistency, and checks continued gameplay. Wrong publisher trust, modified bytes, incompatible rulesets, malformed directories, an independent C digest mismatch, and duplicate loads are required to fail closed with no unintended marker-lump installation.
+
 ## 14. Encrypted parcels
 
 `ZEQ-PARCEL-v2` is the Doom profile of the framework's sealed-box construction. It deliberately adds mandatory expiry and replay semantics; it MUST NOT be passed to a v1-only verifier as though it were v1.
@@ -571,7 +583,7 @@ Phase gates require shared C, JavaScript, and Python vectors plus engine-level t
 - an injected one-byte deterministic state change produces a desync at the first affected checkpoint;
 - transport loss does not change Doom's 35 Hz simulation or invent remote inputs.
 
-## 18. Implementation status through Phase 4 replay and the Phase 5 signed-content SDK
+## 18. Implementation status through Phase 4 replay and Phase 5 single-PWAD loading
 
 | Capability | Status |
 |---|---|
@@ -593,9 +605,10 @@ Phase gates require shared C, JavaScript, and Python vectors plus engine-level t
 | Replay comparison and proof | Phase 4 native implementation tested: second-process match, altered-input mismatch, tamper refusal, and third-run signed-proof verification; fresh E1M1 scope |
 | Headless MCP | Phase 4 local stdio implementation tested: seven methods, lifecycle, live input, read-only defaults, and secret rejection |
 | Browser/WASM replay identity | Phase 4 implemented and tested with the real renderer enabled: exported browser ticcmd records replay in the native engine and equal-tic canonical SHA-256 checkpoints match; this establishes local replay consistency, not competitive legitimacy |
-| Signed mod manifests and file verification | Phase 5 SDK milestone implemented and tested in Node/browser with independent Python vectors; explicit publisher trust required; no engine loading yet |
+| Signed mod manifests and file verification | Phase 5 SDK milestone implemented and tested in Node/browser with independent Python vectors; explicit publisher trust required |
 | Expiring encrypted parcels | Phase 5 SDK milestone implemented and tested: authenticated encryption, expiry, bounded inbox, and replay refusal; plaintext is never executed or auto-loaded |
-| Signed WAD loader | Pending: no verified immutable bytes have reached `W_AddFile`; lump order and TOCTOU protection remain engine work; PK3 unsupported |
+| Signed single-PWAD loader | Phase 5 reference-host milestone implemented and tested: SDK authentication/trust plus C-owned bytes, independent C SHA-256, structural bounds checks, memory-backed lump reads, and evidence-chain records; exactly one PWAD per manifest |
+| Multi-file and PK3 loading | Pending: multi-file order and a bounded PK3 reader are not implemented |
 | Deterministic netcode and rollback | Specified; not implemented |
 
 ## 19. Phase 0 privacy and claim review
@@ -604,4 +617,4 @@ The exposure audit covered all ten public Zeq commits and 22 unique historical b
 
 Subsequent explicit authorization superseded the earlier push freeze for source delivery. Engine/reference-host source belongs in `hulyasmath/doomgeneric`; portable SDK source belongs in `hulyasmath/zeq-doomgeneric`; roadmap and integration documents are mirrored. Each uploaded file must be fetched back and compared with the exact local Git blob SHA. No repository deletion, history rewrite, visibility change, or claim that prior public exposure can be erased is authorized.
 
-The upstream baseline remains `e257a09527062bfb986b6e5e0780839b6cbd5b71`. Large arithmetic vectors are regenerated by committed Python generators rather than treated as hand-written source. WADs, private capsules, keys, machine logs, and build outputs are excluded. The Phase 5 signed-content SDK is implemented and tested, but its real engine WAD loader remains pending; no parcel executes or loads content. Phase 6 deterministic networking/rollback remains future work.
+The upstream baseline remains `e257a09527062bfb986b6e5e0780839b6cbd5b71`. Large arithmetic vectors are regenerated by committed Python generators rather than treated as hand-written source. WADs, private capsules, keys, machine logs, and build outputs are excluded. The Phase 5 signed-content SDK and single-PWAD real-engine loader are implemented and tested; multi-file/PK3 loading remains pending and no parcel executes or loads content. Phase 6 deterministic networking/rollback remains future work.

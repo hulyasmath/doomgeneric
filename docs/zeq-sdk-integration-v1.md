@@ -190,7 +190,7 @@ A canonical serializer must include future-affecting state and exclude presentat
 
 Pointers and callback addresses are process-specific. Replace them with stable symbolic IDs and a versioned object/action table. Define entity traversal order explicitly. Normalize only fields proven not to affect future canonical state.
 
-For Doom, replay canonicalization normalizes mobj `validcount`, omits global `validcount`, and masks `ML_MAPPED` only in canonical line serialization. Ordinary saves retain the original fields. Cosmetic wipe randomness uses a separate display RNG.
+For Doom, replay canonicalization normalizes mobj `validcount`, omits global `validcount`, and masks `ML_MAPPED` only in canonical line serialization. Ordinary saves retain the original fields. Cosmetic wipe randomness uses a separate display RNG stream.
 
 A hash is only as meaningful as its serializer and run identity. Publish canonicalization tests that mutate every included field and demonstrate a hash change, plus presentation-state mutations that demonstrate no gameplay-hash change.
 
@@ -233,7 +233,7 @@ Encrypted save support is not a canonical replay substitute. Replays require aut
 
 A valid signature is not publisher trust. A trusted manifest is not permission to execute native code. The host must separately decide which content types are allowed and how they are sandboxed.
 
-Doom engine loading remains incomplete: no verified immutable bytes have reached `W_AddFile`, and PK3 is unsupported. A third-party host using the SDK must implement and test its own verified-byte loading handoff rather than assume Doom provides it.
+The Doom reference host now implements and tests a narrow single-PWAD profile: one verified WAD per `doomgeneric-zeq-v1` manifest, no dependencies, active-ruleset compatibility, an engine-owned byte copy, independent C SHA-256 verification, structural WAD bounds checks, and memory-backed reads from those same bytes. Multi-file mods and PK3 remain unsupported. This adapter is Doom-specific, not part of the portable SDK; a third-party host must implement and test its own verified-byte handoff and content semantics rather than assume Doom's loader transfers to another engine.
 
 ### 10.2 Sealed parcels
 
