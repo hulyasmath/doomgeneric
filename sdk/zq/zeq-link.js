@@ -148,13 +148,14 @@ function remote({ url, key, fetchImpl = globalThis.fetch }) {
  * file the owner names; it is held in memory and never written anywhere.
  * stop() ends the served process.
  */
-async function serve({ dir, keyFile, port = 8777, file = "zeq.py", python = "python3", pinFile = process.env.ZEQ_PIN_FILE, waitMs = 60000 }) {
+async function serve({ dir, keyFile, port = 8777, file = "zeq.py", python = "python3", pinFile = process.env.ZEQ_PIN_FILE, waitMs = 60000, origins }) {
   const root = path.resolve(dir);
   if (!fs.existsSync(path.join(root, "machine.json"))) refuse("no-machine", `no machine is born in ${root}`);
   let key;
   try { key = fs.readFileSync(keyFile, "utf8").trim(); } catch (_) { refuse("no-key", "keyFile: a key the machine's owner issued"); }
   const env = { ...process.env };
   if (pinFile) env.ZEQ_PIN_FILE = pinFile;
+  if (origins) env.ZEQ_ORIGINS = [].concat(origins).join(",");      // browser origins the machine will answer
   const child = spawn(python, [file, "--serve", String(port)], { cwd: root, env, stdio: "ignore" });
   const url = `http://127.0.0.1:${port}`, link = remote({ url, key });
   const stop = () => { try { child.kill(); } catch (_) { /* already gone */ } };

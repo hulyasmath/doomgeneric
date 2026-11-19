@@ -16,7 +16,11 @@
  *
  * The mathematics a rule needs comes from the machine's generated functions
  * (Zeq.math), never from this file.
+ *
+ * Loads in Node (require) and in a browser (window.ZeqDoom): the `zeq` handle
+ * comes from zeq.js or from zeq-browser.js, and the rules are the same.
  */
+(function (global) {
 "use strict";
 
 const EVENT = Object.freeze({ PHASE_SHOT: 1, PHASE_HIT: 2, PHASE_KILL: 3, LEVEL: 4, DAMAGE: 5, DEATH: 6, SAVE: 7, LOAD: 8, WEAPON_FIRED: 9,
@@ -73,4 +77,7 @@ async function createDoomBridge(zeq, { health = 100 } = {}) {
   return Object.freeze({ weapon, player, onEvent, get health() { return hp; }, fired: () => fired.slice() });
 }
 
-module.exports = Object.freeze({ EVENT, WEAPON, PLAYER, createDoomBridge });
+const api = Object.freeze({ EVENT, WEAPON, PLAYER, createDoomBridge });
+if (typeof module !== "undefined" && module.exports) module.exports = api;
+else global.ZeqDoom = api;
+})(typeof globalThis !== "undefined" ? globalThis : this);

@@ -62,7 +62,7 @@ module.exports = Object.freeze({
   /* A machine already on the wire. */
   connect: async ({ url, key }) => wrap(link.remote({ url, key }), null),
   /* A machine born in `dir` on this device: served on loopback for as long as the handle is open. */
-  local: async ({ dir, keyFile, port, pinFile }) => { const m = await link.serve({ dir, keyFile, port, pinFile }); return wrap(m.link, m.stop); },
+  local: async ({ dir, keyFile, port, pinFile, origins }) => { const m = await link.serve({ dir, keyFile, port, pinFile, origins }); return wrap(m.link, m.stop); },
   /* The machine's generated mathematics, offline. */
   math: (dir, opts) => { const g = link.load(dir, opts); const out = {}; for (const [k, f] of Object.entries(g.functions)) out[k] = Object.assign((...a) => f.call(...a), f); return Object.freeze(out); },
 });
