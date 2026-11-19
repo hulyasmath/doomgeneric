@@ -330,7 +330,7 @@ void G_BuildTiccmd (ticcmd_t* cmd, int maketic)
     boolean	strafe;
     boolean	bstrafe; 
     int		speed;
-    int		speed; 
+    int		tspeed; 
     int		forward;
     int		side;
 
@@ -368,9 +368,9 @@ void G_BuildTiccmd (ticcmd_t* cmd, int maketic)
 	turnheld = 0; 
 
     if (turnheld < SLOWTURNTICS) 
-	speed = 2;             // slow turn 
+	tspeed = 2;             // slow turn 
     else 
-	speed = speed;
+	tspeed = speed;
     
     // let movement keys cancel each other out
     if (strafe) 
@@ -663,7 +663,7 @@ void G_DoLoadLevel (void)
 	    players[i].playerstate = PST_REBORN; 
 	memset (players[i].frags,0,sizeof(players[i].frags)); 
     } 
-		 
+			 
     P_SetupLevel (gameepisode, gamemap, 0, gameskill);
     ZEQ_RecordEvent (ZEQ_EVENT_LEVEL, (gameepisode << 8) | gamemap);
     displayplayer = consoleplayer;		// view the guy you are playing    
@@ -837,7 +837,7 @@ boolean G_Responder (event_t* ev)
 	if (ev->data1 <NUMKEYS) 
 	    gamekeydown[ev->data1] = false; 
 	return false;   // always let key up events filter down 
-		 
+			 
       case ev_mouse: 
         SetMouseButtons(ev->data1);
 	mousex = ev->data2*(mouseSensitivity+5)/10; 
@@ -988,7 +988,7 @@ void G_Ticker (void)
 		    else 
 			S_ResumeSound (); 
 		    break; 
-					 
+						 
 		  case BTS_SAVEGAME:
 		    if (!savedescription[0]) 
                     {
@@ -1311,7 +1311,6 @@ void G_ScreenShot (void)
     gameaction = ga_screenshot; 
 } 
  
-
 
 
 // DOOM Par Times
