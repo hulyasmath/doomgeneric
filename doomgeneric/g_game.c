@@ -41,10 +41,15 @@
 
 #include "p_setup.h"
 #include "zeq_doom.h"
+#include "zeq_capture.h"
+#ifdef ZEQ_HEADLESS
+#include "zeq_headless.h"
+#endif
 #include "p_saveg.h"
 #include "p_tick.h"
 
 #include "d_main.h"
+#include "d_loop.h"
 
 #include "wi_stuff.h"
 #include "hu_stuff.h"
@@ -234,10 +239,10 @@ int G_CmdChecksum (ticcmd_t* cmd)
 { 
     size_t		i;
     int		sum = 0; 
-	 
+		 
     for (i=0 ; i< sizeof(*cmd)/4 - 1 ; i++) 
 	sum += ((int *)cmd)[i]; 
-		 
+			 
     return sum; 
 } 
 
@@ -325,11 +330,16 @@ void G_BuildTiccmd (ticcmd_t* cmd, int maketic)
     boolean	strafe;
     boolean	bstrafe; 
     int		speed;
-    int		tspeed; 
+    int		speed; 
     int		forward;
     int		side;
 
     memset(cmd, 0, sizeof(ticcmd_t));
+
+#ifdef ZEQ_HEADLESS
+    if (ZEQ_HeadlessBuildTiccmd(cmd, maketic))
+        return;
+#endif
 
     cmd->consistancy = 
 	consistancy[consoleplayer][maketic%BACKUPTICS]; 
@@ -358,9 +368,9 @@ void G_BuildTiccmd (ticcmd_t* cmd, int maketic)
 	turnheld = 0; 
 
     if (turnheld < SLOWTURNTICS) 
-	tspeed = 2;             // slow turn 
+	speed = 2;             // slow turn 
     else 
-	tspeed = speed;
+	speed = speed;
     
     // let movement keys cancel each other out
     if (strafe) 
@@ -531,7 +541,7 @@ void G_BuildTiccmd (ticcmd_t* cmd, int maketic)
                 dclicks2 = 0; 
                 dclickstate2 = 0; 
             } 
-        } 
+        }
     }
 
     forward += mousey; 
@@ -549,7 +559,7 @@ void G_BuildTiccmd (ticcmd_t* cmd, int maketic)
     }
     
     mousex = mousey = 0; 
-	 
+		 
     if (forward > MAXPLMOVE) 
 	forward = MAXPLMOVE; 
     else if (forward < -MAXPLMOVE) 
@@ -573,7 +583,7 @@ void G_BuildTiccmd (ticcmd_t* cmd, int maketic)
     { 
 	sendsave = false; 
 	cmd->buttons = BT_SPECIAL | BTS_SAVEGAME | (savegameslot<<BTS_SAVESHIFT); 
-    } 
+    }
 
     // low-res turning
 
@@ -594,6 +604,8 @@ void G_BuildTiccmd (ticcmd_t* cmd, int maketic)
 
         carry = desired_angleturn - cmd->angleturn;
     }
+
+    ZEQ_CaptureTiccmd(maketic, cmd);
 } 
  
 
@@ -1240,7 +1252,7 @@ void G_DeathMatchSpawnPlayer (int playernum)
 	    return; 
 	} 
     } 
- 
+	 
     // no good spot, so the player will probably get stuck 
     P_SpawnPlayer (&playerstarts[playernum]); 
 } 
@@ -1299,6 +1311,7 @@ void G_ScreenShot (void)
     gameaction = ga_screenshot; 
 } 
  
+
 
 
 // DOOM Par Times
@@ -1399,7 +1412,7 @@ void G_DoCompleted (void)
 	// exit secret level 
 	for (i=0 ; i<MAXPLAYERS ; i++) 
 	    players[i].didsecret = true; 
-    } 
+    }
 //#endif
     
 	 
@@ -1582,6 +1595,10 @@ void G_DoLoadGame (void)
  
     if (!P_ReadSaveGameEOF())
 	I_Error ("Bad savegame");
+
+    // The extended save restores gametic, so restart command production at
+    // the restored tic before the scheduler is allowed to run again.
+    D_ResyncAfterLoad();
 
     fclose(save_stream);
     
