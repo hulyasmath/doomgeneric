@@ -42,42 +42,54 @@ const PLAYER = Object.freeze({ name: "doom.player", version: "1",
     { from: "hurt", to: "dead", operator: "killed", condition: "input.health <= 0", proof_required: true },
   ] });
 
-/* `zeq` is a handle from Zeq.local or Zeq.connect. */
-async function createDoomBridge(zeq, { health = 100 } = {}) {
-  const weapon = await zeq.contract(WEAPON), player = await zeq.contract(PLAYER);
-  let readyTic = 0, hp = health, lastFireTic = -1, pending = null;
-  const fired = [];
-  const note = (event, contract, r) => { const out = { contract, ...r }; fired.push({ tic: event.gametic ?? event.tic, type: event.type, ...out }); return out; };
-  /* Feed one engine event. Returns what the machine decided, or null when the event moves no contract. */
-  async function onEvent(event) {
-    const tic = event.gametic ?? event.tic;
-    if (!Number.isInteger(event.type) || !Number.isInteger(tic) || !Number.isInteger(event.value)) throw new TypeError("a Doom event is {type, gametic, phase, value}, all integers");
-    switch (event.type) {
-      case EVENT.COOLDOWN_STARTED:
-        if (tic === lastFireTic) readyTic = event.value;          // announced after its shot
-        else pending = { tic, value: event.value };                // announced before its shot (the real engine's order)
-        return null;
-      case EVENT.WEAPON_FIRED: {
-        if (weapon.state === "cooling") { const back = note(event, "weapon", await weapon.fire("ready", { tic, ready_tic: readyTic })); if (!back.fired) return back; }
-        const shot = note(event, "weapon", await weapon.fire("cooling", { weapon: event.value, tic }));
-        if (shot.fired) { lastFireTic = tic; if (pending && pending.tic === tic) readyTic = pending.value; }
-        pending = null;
+/*
+ * Doom as a host description for zeq-host: which engine event moves which rule.
+ * This is all a game writes. The queue, the machine calls and the record are zeq-host's.
+ */
+const tic = (e) => (e.gametic ?? e.tic);
+function hostSpec({ health = 100 } = {}) {
+  return {
+    name: "doom",
+    contracts: { weapon: WEAPON, player: PLAYER },
+    memory: { readyTic: 0, health, lastFireTic: -1, pending: null },
+    kind: (e) => e.type,
+    validate: (e) => (Number.isInteger(e.type) && Number.isInteger(tic(e)) && Number.isInteger(e.value) ? true : "a Doom event is {type, gametic, phase, value}, all integers"),
+    on: {
+      [EVENT.COOLDOWN_STARTED]: (e, h) => {
+        if (tic(e) === h.memory.lastFireTic) h.memory.readyTic = e.value;      // announced after its shot
+        else h.memory.pending = { tic: tic(e), value: e.value };               // announced before its shot (the real engine's order)
+      },
+      [EVENT.WEAPON_FIRED]: async (e, h) => {
+        const m = h.memory, t = tic(e);
+        if (h.state("weapon") === "cooling") { const back = await h.fire("weapon", "ready", { tic: t, ready_tic: m.readyTic }); if (!back.fired) return back; }
+        const shot = await h.fire("weapon", "cooling", { weapon: e.value, tic: t });
+        if (shot.fired) { m.lastFireTic = t; if (m.pending && m.pending.tic === t) m.readyTic = m.pending.value; }
+        m.pending = null;
         return shot;
-      }
-      case EVENT.DAMAGE: {
-        if (player.state === "dead") return null;
-        hp -= event.value;
-        if (hp <= 0) return note(event, "player", await player.fire("dead", { health: hp }));
-        return player.state === "alive" ? note(event, "player", await player.fire("hurt", { damage: event.value, health: hp })) : null;
-      }
-      case EVENT.DEATH: return player.state === "dead" ? null : note(event, "player", await player.fire("dead", { health: 0 }));
-      default: return null;
-    }
-  }
-  return Object.freeze({ weapon, player, onEvent, get health() { return hp; }, fired: () => fired.slice() });
+      },
+      [EVENT.DAMAGE]: async (e, h) => {
+        const m = h.memory;
+        if (h.state("player") === "dead") return null;
+        m.health -= e.value;
+        if (m.health <= 0) return h.fire("player", "dead", { health: m.health });
+        return h.state("player") === "alive" ? h.fire("player", "hurt", { damage: e.value, health: m.health }) : null;
+      },
+      [EVENT.DEATH]: (e, h) => (h.state("player") === "dead" ? null : h.fire("player", "dead", { health: 0 })),
+    },
+  };
 }
 
-const api = Object.freeze({ EVENT, WEAPON, PLAYER, createDoomBridge });
+/* `zeq` is a handle from Zeq.local, Zeq.connect or ZeqBrowser.connect. */
+async function createDoomBridge(zeq, options) {
+  const ZeqHost = typeof module !== "undefined" && module.exports ? require("../../zeq-host.js") : global.ZeqHost;
+  if (!ZeqHost) throw new Error("doom-zeq: load zeq-host.js first");
+  const host = await ZeqHost.attach(zeq, hostSpec(options));
+  /* Feed one engine event. Returns what the machine decided, or null when the event moves no contract. */
+  const onEvent = (event) => host.send(event).catch((e) => { if (e.code === "bad-event") throw new TypeError(e.detail); throw e; });
+  return Object.freeze({ host, weapon: host.contracts.weapon, player: host.contracts.player, onEvent, get health() { return host.memory.health; }, fired: () => host.decisions() });
+}
+
+const api = Object.freeze({ EVENT, WEAPON, PLAYER, hostSpec, createDoomBridge });
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 else global.ZeqDoom = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

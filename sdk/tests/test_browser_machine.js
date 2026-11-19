@@ -13,11 +13,11 @@ const Replay = require("../zeq-replay.js");
 (async () => {
   const root = path.join(__dirname, "..", ".."), dir = process.env.ZEQ_MACHINE_DIR, keyFile = process.env.ZEQ_KEY_FILE;
   const shell = fs.readFileSync(path.join(root, "web", "shell.html"), "utf8"), game = fs.readFileSync(path.join(root, "web", "zeq.js"), "utf8");
-  for (const s of ["sdk/zq/zeq-browser.js", "sdk/zq/examples/doom/doom-zeq.js", "zeq-machine.js"]) assert.ok(shell.includes(`<script src="${s}"></script>`), `shell.html loads ${s}`);
+  for (const s of ["sdk/zq/zeq-browser.js", "sdk/zq/zeq-host.js", "sdk/zq/zeq-panel.js", "sdk/zq/examples/doom/doom-zeq.js", "zeq-machine.js"]) assert.ok(shell.includes(`<script src="${s}"></script>`), `shell.html loads ${s}`);
   assert.ok(shell.indexOf("zeq-machine.js") > shell.indexOf("zeq-browser.js"), "the SDK loads before the panel");
   assert.ok(/window\.ZeqHostHook\(\{ type: record\.type, gametic: record\.tic, phase: record\.phase, value: record\.value \}\)/.test(game), "web/zeq.js hands every event to the hook");
   const build = fs.readFileSync(path.join(root, "build-web.sh"), "utf8");
-  for (const f of ["zeq-machine.js", "zeq-browser.js", "doom-zeq.js"]) assert.ok(build.includes(f), `build-web.sh ships ${f}`);
+  for (const f of ["zeq-machine.js", "zeq-browser.js", "zeq-host.js", "zeq-panel.js", "doom-zeq.js"]) assert.ok(build.includes(f), `build-web.sh ships ${f}`);
   if (!dir || !keyFile) { console.log("Browser machine OK: 6 checks offline; live unavailable (set ZEQ_MACHINE_DIR, ZEQ_KEY_FILE, ZEQ_PIN_FILE)"); return; }
   if (!fs.existsSync(path.join(root, "doomgeneric", "doomgeneric-headless")) || !fs.existsSync(path.join(root, "doomgeneric", "doom1.wad"))) { console.log("Browser machine OK: 6 checks offline; real engine unavailable (sh build-headless.sh, with doom1.wad)"); return; }
   let chromium;
@@ -32,6 +32,8 @@ const Replay = require("../zeq-replay.js");
   const page0 = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "zeq-page-")), "index.html");
   fs.writeFileSync(page0, `<!doctype html><meta charset="utf-8"><title>hook</title><body>
 <script src="file://${path.join(root, "sdk", "zq", "zeq-browser.js")}"></script>
+<script src="file://${path.join(root, "sdk", "zq", "zeq-host.js")}"></script>
+<script src="file://${path.join(root, "sdk", "zq", "zeq-panel.js")}"></script>
 <script src="file://${path.join(root, "sdk", "zq", "examples", "doom", "doom-zeq.js")}"></script>
 <script src="file://${path.join(root, "web", "zeq-machine.js")}"></script></body>`);
   const port = Number(process.env.ZEQ_PORT || 8797), key = fs.readFileSync(keyFile, "utf8").trim();

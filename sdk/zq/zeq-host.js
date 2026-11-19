@@ -1,0 +1,132 @@
+/*
+ * zeq-host: connect any game or simulation to a Zeq machine.
+ *
+ * A host has events. This turns them into transitions of state contracts that
+ * a machine holds, decides and chains. Nothing here knows any one game: the
+ * host says what its events are and which rule each one moves.
+ *
+ *   const host = await ZeqHost.attach(zeq, {
+ *     name: "my-game",
+ *     contracts: { door: DOOR },                       // the rules, in the framework's schema
+ *     memory: { keys: 0 },                             // plain values the handlers keep between events
+ *     kind: (event) => event.type,                     // which field names the event (default: event.kind)
+ *     on: {
+ *       pickup: (e, h) => { h.memory.keys += 1; },                       // moves no contract
+ *       use:    { contract: "door", to: "open", input: (e, m) => ({ keys: m.keys }) },
+ *       slam:   async (e, h) => h.fire("door", "closed", {}),            // or any logic of your own
+ *     },
+ *   });
+ *   const decision = await host.send({ kind: "use" });   // { contract, fired, state, verdict, proof, why } or null
+ *
+ * `zeq` is any handle with contract(definition): from zeq.js (Zeq.local,
+ * Zeq.connect) in Node or from zeq-browser.js in a page. Events are decided
+ * one at a time in the order they were sent, so a host can call send() from
+ * its frame loop and never wait.
+ *
+ * Loads in Node (require) and in a browser (window.ZeqHost).
+ */
+(function (global) {
+"use strict";
+
+const FORMAT = "zeq-host-v1";
+class ZeqRefusal extends Error {
+  constructor(code, detail) { super(`${code}: ${detail}`); this.name = "ZeqRefusal"; this.code = code; this.detail = String(detail); }
+}
+const refuse = (code, detail) => { throw new ZeqRefusal(code, detail); };
+const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+
+/*
+ * Check a contract definition before any machine sees it. Returns a list of
+ * problems, empty when the definition is well formed. The machine remains the
+ * judge; this only catches mistakes early and offline.
+ */
+function check(definition) {
+  const problems = [];
+  if (!isObject(definition)) return ["a definition is an object: { name, states, transitions }"];
+  if (typeof definition.name !== "string" || !definition.name) problems.push("name: a non-empty string");
+  const states = isObject(definition.states) ? definition.states : null;
+  if (!states || !Object.keys(states).length) problems.push("states: at least one state");
+  else {
+    const initial = Object.keys(states).filter((s) => states[s] && states[s].initial);
+    if (initial.length !== 1) problems.push(`states: exactly one initial state, found ${initial.length}`);
+  }
+  if (!Array.isArray(definition.transitions) || !definition.transitions.length) problems.push("transitions: at least one transition");
+  else definition.transitions.forEach((t, i) => {
+    const at = `transitions[${i}]`;
+    if (!isObject(t)) { problems.push(`${at}: an object`); return; }
+    if (states && !(t.from in states)) problems.push(`${at}: from "${t.from}" is not a state`);
+    if (states && !(t.to in states)) problems.push(`${at}: to "${t.to}" is not a state`);
+    if (states && states[t.from] && states[t.from].terminal) problems.push(`${at}: leaves the terminal state "${t.from}"`);
+    if (typeof t.operator !== "string" || !t.operator) problems.push(`${at}: operator, the name of the move`);
+    if (t.condition !== undefined) {
+      if (typeof t.condition !== "string") problems.push(`${at}: condition is text`);
+      else {
+        if (/\//.test(t.condition)) problems.push(`${at}: condition divides; multiply both sides instead, so every machine decides alike`);
+        if (/\d\.\d/.test(t.condition)) problems.push(`${at}: condition uses a fraction; use integers`);
+      }
+    }
+  });
+  return problems;
+}
+
+/* attach(zeq, { name, contracts, memory, kind, on, validate }) -> host */
+async function attach(zeq, spec) {
+  if (!zeq || typeof zeq.contract !== "function") refuse("no-machine", "zeq: a handle from Zeq.local, Zeq.connect or ZeqBrowser.connect");
+  if (!isObject(spec) || !isObject(spec.contracts) || !Object.keys(spec.contracts).length) refuse("bad-host", "contracts: at least one named contract definition");
+  if (!isObject(spec.on) || !Object.keys(spec.on).length) refuse("bad-host", "on: at least one event handler");
+  const kindOf = typeof spec.kind === "function" ? spec.kind : (e) => e.kind;
+  for (const [key, def] of Object.entries(spec.contracts)) { const p = check(def); if (p.length) refuse("bad-contract", `${key}: ${p.join("; ")}`); }
+  for (const [kind, h] of Object.entries(spec.on)) {
+    if (typeof h === "function") continue;
+    if (!isObject(h) || !(h.contract in spec.contracts) || typeof h.to !== "string") refuse("bad-host", `on.${kind}: a function, or { contract, to, input }`);
+    if (!(h.to in spec.contracts[h.contract].states)) refuse("bad-host", `on.${kind}: "${h.to}" is not a state of ${h.contract}`);
+  }
+  const contracts = {};
+  for (const [key, def] of Object.entries(spec.contracts)) contracts[key] = await zeq.contract(def);
+  const memory = Object.assign({}, spec.memory || {});
+  /* events sent; events the machine accepted or refused; transitions fired (one event may fire more than one) */
+  const stats = { events: 0, accepted: 0, refused: 0, fires: 0 };
+  const decisions = [];
+  let current = null, queue = Promise.resolve(), sequence = 0;
+
+  /* Ask the machine for one transition. The answer is recorded with the event that caused it. */
+  async function fire(contract, to, input) {
+    const c = contracts[contract];
+    if (!c) refuse("bad-host", `no contract named ${contract}`);
+    const r = await c.fire(to, input || {});
+    const out = Object.assign({ contract }, r);
+    if (r.fired) stats.fires++;
+    decisions.push(Object.assign({ sequence: current ? current.sequence : null, kind: current ? current.kind : null }, out));
+    return out;
+  }
+  const handle = Object.freeze({ fire, memory, contracts, state: (contract) => { const c = contracts[contract]; if (!c) refuse("bad-host", `no contract named ${contract}`); return c.state; } });
+
+  async function decide(event) {
+    if (!isObject(event)) refuse("bad-event", "an event is an object");
+    if (spec.validate) { const why = spec.validate(event); if (typeof why === "string") refuse("bad-event", why); }
+    const kind = kindOf(event);
+    const h = spec.on[kind];
+    stats.events++;
+    if (h === undefined) return null;
+    current = { sequence: sequence++, kind };
+    try {
+      let r = typeof h === "function" ? await h(event, handle) : await fire(h.contract, h.to, typeof h.input === "function" ? h.input(event, memory) : (h.input || {}));
+      if (r === undefined) r = null;
+      if (r && typeof r.fired === "boolean") { if (r.fired) stats.accepted++; else stats.refused++; }
+      return r;
+    } finally { current = null; }
+  }
+  /* Events are decided in the order sent. A failure rejects its own send() and does not stop the ones after it. */
+  function send(event) {
+    const result = queue.then(() => decide(event));
+    queue = result.then(() => undefined, () => undefined);
+    return result;
+  }
+  return Object.freeze({ format: FORMAT, name: spec.name || "host", contracts, memory, stats, send, idle: () => queue, decisions: () => decisions.slice(),
+    states: () => Object.fromEntries(Object.entries(contracts).map(([k, c]) => [k, c.state])) });
+}
+
+const api = Object.freeze({ format: FORMAT, ZeqRefusal, attach, check });
+if (typeof module !== "undefined" && module.exports) module.exports = api;
+else global.ZeqHost = api;
+})(typeof globalThis !== "undefined" ? globalThis : this);
