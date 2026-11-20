@@ -1,7 +1,7 @@
 # Zeq × doomgeneric Protocol Specification
 
 **Protocol family:** `zeq-doom-v1`  
-**Document status:** Phase 0 reviewed draft; implementation is not implied  
+**Document status:** Versioned reference protocol; section 18 records tested implementation scope
 **Engine baseline:** `c8e4f18c11175a1c69e203a292e4bcdbf874a538`  
 **Upstream merge base:** `e257a09527062bfb986b6e5e0780839b6cbd5b71`  
 **Authoritative framework references:** uploaded `zeq(1).py` and `zeq(1).html`
@@ -47,6 +47,10 @@ The following claims are prohibited:
 | `zeq-doom-net-v1` | 1 | Native two-process binary command/hash/rollback protocol |
 | `zeq-pixel-v1` | 1 | Optional deterministic opaque raster primitives and occupancy |
 | `zeq-pixel-conformance-v1` | 1 | Fixed-scene native/JavaScript/WASM pixel comparison record |
+| `zeq-pk3-v1` | 1 | Bounded stored/deflated regular-file package with manifest-defined order |
+| `zeq-texture-validation-v1` | 1 | Checked Doom texture/patch/flat/palette/colormap resource bounds |
+| `zeq-doom-visual-v1` | 1 | Real indexed-frame visual commitments separate from gameplay state |
+| `zeq-bot-schedule-v1` | 1 | Deterministic outer 20 Hz command scheduler for a 35 Hz host |
 | `zeq-mcp-v1` | 1 | Local headless automation interface |
 
 Existing records retain their original meanings:
@@ -457,21 +461,25 @@ Every file digest and size MUST be verified before `W_AddFile` receives it. Veri
 
 Paths are relative UTF-8/NFC, use `/`, and MUST NOT contain empty components, `.`, `..`, backslashes, drive prefixes, absolute roots, NUL, or symlink escapes. Initial limits are 1 MiB per manifest, 1024 files, 64 MiB per file, and 256 MiB total declared content.
 
-The first implementation accepts WAD files with a defined lump behavior. PK3 requires a separate bounded ZIP reader: reject traversal, absolute paths, encrypted entries, nested archives, unsupported compression, duplicate ambiguous lumps, and decompression/resource-limit violations. PK3 limits are 4096 entries, 512 MiB total decompressed data, and a maximum 200:1 expansion ratio per entry; lump mapping and load order MUST be specified before PK3 is called supported.
+The implemented content layer accepts either one PWAD or a `zeq-pk3-v1` package. Generic manifest/package limits are 1 MiB per manifest, 1024 entries, 64 MiB per file, and 256 MiB total actual uncompressed content. The Doom host further restricts an accepted package to one through sixteen `.wad` files. PK3 entries MUST be regular files using ZIP method 0 (stored) or 8 (deflated); directories, symbolic links/other non-regular Unix types, encryption, unsupported flags/methods, and nested `.pk3`/`.zip` archives are refused.
+
+The bounded ZIP reader checks EOCD and central-directory extents, local/central names, declared and actual sizes, CRC-32, truncation, and trailing bytes. Deflated output is bounded while decompressing, not merely by trusting the declared size. Unsafe, absolute, duplicate, case-ambiguous, or non-NFC paths are refused. No archive entry is extracted to a filesystem. Manifest array order—not ZIP entry order—is the Doom PWAD load order, and the manifest file set must exactly match the package file set.
 
 A valid signature proves possession of a signing key for the manifest. It does not prove that a mod is safe, compatible, or appropriate to trust.
 
-### 13.3 Implemented single-PWAD reference-host profile
+### 13.3 Implemented scoped PWAD/PK3 reference-host profile
 
-The current browser reference host accepts exactly one `.wad` file per manifest, requires `engine_api = "doomgeneric-zeq-v1"` and an empty dependency list, and requires the manifest to declare the active ruleset. Other manifests are refused before the engine handoff. Multi-file load order and PK3 remain unspecified and unsupported.
+The current browser reference host accepts one `.wad` file or a bounded `.pk3` containing one through sixteen PWADs per manifest. It requires `engine_api = "doomgeneric-zeq-v1"`, an empty dependency list, and declaration of the active ruleset. Other manifests are refused before the engine handoff. This is not general PK3 lump/content semantics, dependency resolution, arbitrary code loading, or network-session content negotiation.
 
-The SDK verifies the canonical Ed25519 signature, the user's explicit publisher-key trust decision, declared size, and file SHA-256. The engine then receives the verified bytes and expected identity metadata. `ZEQ_LoadVerifiedWad` copies the input before hashing or parsing, independently recomputes SHA-256 in C, and validates the `PWAD` signature, directory extent, and every lump position/size range. At most 64 MiB and 65536 lumps are accepted by this adapter.
+The SDK verifies the canonical Ed25519 signature, the user's explicit publisher-key trust decision, declared sizes, file SHA-256 digests, and package structure before the engine handoff. For a multi-PWAD package, every file first passes `ZEQ_ValidateVerifiedWad` in non-committing C validation mode. Only after the entire batch passes does the browser call `ZEQ_LoadVerifiedWad` in manifest order. This prevents a known malformed later file from causing an avoidable partial load; an unexpected allocation/engine failure during final append is not claimed to be transactional rollback.
 
-`W_AddMemoryFile` takes ownership of the verified allocation and installs it in Doom's ordinary lump directory. Its memory-backed `Read` implementation checks every offset/length against the immutable buffer; no pathname is reopened and no subsequent lump read uses the caller's temporary WASM allocation. The ordinary path-based `W_AddFile` behavior remains available for the base game.
+For each PWAD, the engine copies the input before hashing or parsing, independently recomputes SHA-256 in C, and validates the `PWAD` signature, directory extent, and every lump position/size range. At most 64 MiB and 65536 lumps are accepted per PWAD by this adapter.
 
-Each attempt produces `zeq-content-load-evidence-v1` with schema version, status, explicit trust, active ruleset and compatibility, digest-verification result, mod ID/version, publisher key ID, content SHA-256, accepted WAD lump count, and total engine lump count. Browser records include this evidence in the signed local event chain. A load result does not change replay status: telemetry-only proofs remain `unavailable` unless actual reproduction is supplied.
+`W_AddMemoryFile` takes ownership of each verified allocation and installs it in Doom's ordinary lump directory. Its memory-backed `Read` implementation checks every offset/length against the immutable buffer; no pathname is reopened and no subsequent lump read uses the caller's temporary WASM allocation. The ordinary path-based `W_AddFile` behavior remains available for the base game.
 
-The integration gate loads a real conformance-only marker PWAD through the visible form, reads its exact bytes back through `W_ReadLump`, verifies ledger/proof consistency, and checks continued gameplay. Wrong publisher trust, modified bytes, incompatible rulesets, malformed directories, an independent C digest mismatch, and duplicate loads are required to fail closed with no unintended marker-lump installation.
+Each attempt produces `zeq-content-load-evidence-v1` with schema version, status, explicit trust, active ruleset and compatibility, digest-verification result, mod ID/version, publisher key ID, package format, file count, manifest load order, current file index, content SHA-256, accepted WAD lump count, and total engine lump count where applicable. Browser records include this evidence in the signed local event chain. A load result does not change replay status: telemetry-only proofs remain `unavailable` unless actual reproduction is supplied.
+
+The integration gate loads a real conformance-only marker PWAD and a two-PWAD PK3 through the visible form, reads exact bytes back through `W_ReadLump`, verifies that reversed ZIP order still follows manifest order, and checks ledger/proof consistency and continued gameplay. A signed batch with a malformed second PWAD is refused during prevalidation without installing its valid first PWAD. Wrong publisher trust, modified bytes, incompatible rulesets, malformed directories, an independent C digest mismatch, and duplicate loads fail closed with no unintended marker-lump installation.
 
 ## 14. Encrypted parcels
 
@@ -627,7 +635,7 @@ Phase gates require shared C, JavaScript, and Python vectors plus engine-level t
 - an injected one-byte deterministic state change produces a desync at the first affected checkpoint;
 - transport loss does not change Doom's 35 Hz simulation or invent remote inputs.
 
-## 18. Implementation status through the Phase 7 bounded pixel slice
+## 18. Current reference implementation status
 
 | Capability | Status |
 |---|---|
@@ -651,13 +659,15 @@ Phase gates require shared C, JavaScript, and Python vectors plus engine-level t
 | Browser/WASM replay identity | Phase 4 implemented and tested with the real renderer enabled: exported browser ticcmd records replay in the native engine and equal-tic canonical SHA-256 checkpoints match; this establishes local replay consistency, not competitive legitimacy |
 | Signed mod manifests and file verification | Phase 5 SDK milestone implemented and tested in Node/browser with independent Python vectors; explicit publisher trust required |
 | Expiring encrypted parcels | Phase 5 SDK milestone implemented and tested: authenticated encryption, expiry, bounded inbox, and replay refusal; plaintext is never executed or auto-loaded |
-| Signed single-PWAD loader | Phase 5 reference-host milestone implemented and tested: SDK authentication/trust plus C-owned bytes, independent C SHA-256, structural bounds checks, memory-backed lump reads, and evidence-chain records; exactly one PWAD per manifest |
-| Multi-file and PK3 loading | Pending: multi-file order and a bounded PK3 reader are not implemented |
+| Signed PWAD/PK3 loader | Phase 5 scoped reference profile implemented and tested: one PWAD or one to sixteen PWADs in bounded PK3, SDK authentication/trust, C-owned bytes, independent C SHA-256, structural checks, memory-backed reads, and evidence records |
+| Multi-file order and batch safety | Implemented and tested: manifest order overrides ZIP order; whole-batch non-committing C validation precedes the first append; unexpected append-time allocation failure is not claimed to roll back |
 | Native two-client netcode and rollback | Phase 6 reference profile implemented and tested: real TCP, complete commands, 8-tic prediction, bounded snapshots, retransmission, rollback/resimulation, matching confirmed hashes, refusal, and bidirectional desync detection |
 | Explicit private-LAN interface binding | Implemented and tested on one host over non-loopback TCP with matching hashes; malformed/wildcard binds refused; no physical two-machine Wi-Fi result |
 | Browser or secure public multiplayer | Pending: no browser transport, signed peer authentication, encryption/TLS, matchmaking, mid-game join, or more-than-two-player profile |
 | Deterministic pixel/occupancy primitives | Phase 7 bounded slice implemented and tested with byte-identical native C, JavaScript BigInt, and WASM fixed-scene results; separate frame/occupancy hashes |
-| Doom strict renderer and texture validation | Pending: ordinary Doom rendering is unchanged; no texture/flat validator, fuzz/translucency profile, or full visual-integrity claim |
+| Doom strict visual and texture profiles | Implemented and locally tested: checked texture/patch/flat/palette/colormap bounds plus final-indexed-frame `zeq-doom-visual-v1` commitments after palette, colormap, fuzz, translucency, HUD, and menus; Doom remains the display renderer and visual hashes are not gameplay proof |
+| Portable quantities, scientific numerics, experiments, and lifecycle | Implemented and locally tested in engine-neutral JavaScript profiles; Float64 numerics are nonauthoritative, external-machine reproduction is open, and lifecycle records do not execute or sandbox code |
+| Second non-Doom chamber and domain pack | Implemented and locally tested across C99/JavaScript/Python with exact canonical state/replay, differential/property tests, experiment reproduction, and synthetic provenance; no calibrated physical-accuracy claim |
 
 ## 19. Phase 0 privacy and claim review
 
@@ -665,7 +675,7 @@ The exposure audit covered all ten public Zeq commits and 22 unique historical b
 
 Subsequent explicit authorization superseded the earlier push freeze for source delivery. Engine/reference-host source belongs in `hulyasmath/doomgeneric`; portable SDK source belongs in `hulyasmath/zeq-doomgeneric`; roadmap and integration documents are mirrored. Each uploaded file must be fetched back and compared with the exact local Git blob SHA. No repository deletion, history rewrite, visibility change, or claim that prior public exposure can be erased is authorized.
 
-The upstream baseline remains `e257a09527062bfb986b6e5e0780839b6cbd5b71`. Large arithmetic vectors are regenerated by committed Python generators rather than treated as hand-written source. WADs, private capsules, keys, machine logs, and build outputs are excluded. The Phase 5 signed-content SDK and single-PWAD real-engine loader are implemented and tested; multi-file/PK3 loading remains pending and no parcel executes or loads content. The Phase 6 native two-process reference profile is implemented and tested, including one-host explicit non-loopback TCP; physical two-machine Wi-Fi, browser networking, production transport security, and broader hardening remain future work. Phase 7 has only the tested portable pixel/occupancy conformance slice, not a Doom renderer replacement.
+The upstream baseline remains `e257a09527062bfb986b6e5e0780839b6cbd5b71`. Large arithmetic vectors are regenerated by committed Python generators rather than treated as hand-written source. WADs, private capsules, keys, machine logs, and build outputs are excluded. The Phase 5 signed-content SDK and scoped single-PWAD/multi-PWAD-PK3 real-engine loader are implemented and locally tested; no parcel executes or automatically loads content. The Phase 6 native two-process reference profile is implemented and tested, including one-host explicit non-loopback TCP and a 2,000-tic impaired soak; physical two-machine Wi-Fi, browser networking, and production transport security remain future work. Phase 7 includes the tested portable pixel/occupancy profiles, resource validation, and scoped real-host visual commitments, not a Doom renderer replacement. Portable Phase 9–13 modules and the second non-Doom chamber are locally implemented/tested as described in the portable-profile guide and conformance matrix; external-machine certification, physical accuracy, and arbitrary-host compatibility are not implied.
 
 ## 20. Optional `zeq-pixel-v1` raster primitives
 
@@ -691,7 +701,7 @@ Canonical serialization is little-endian and row-major. Both forms start with an
 
 `node sdk/tests/test_pixel.js` compiles and runs the same `zeq-pixel-conformance-v1` scene as native C, JavaScript, and WASM, compares every byte and expected status, and repeats native/WASM runs. The 9×7 fixture currently produces 268 frame bytes with SHA-256 `afaf2f3df60e9d265ad30a4c7bbf24a99c6eb688dfd9230c63d8cb8181d523c6` and 1024 occupancy bytes with SHA-256 `9cdc18f75e76bd7bb2b790890b805f05fe9513747eb3c35ef7179e019e8f0d7b`. These are test-fixture commitments, not hashes of normal Doom frames.
 
-Still pending are host renderer integration, texture/flat structural validation, palettes/colormaps, fuzz/translucency, broader resolution and geometry testing, and resource/performance budgets. Any future visual evidence must separately identify renderer, resolution, palette, content, and settings. Pixel or occupancy hashes never substitute for canonical gameplay hashes or establish competitive legitimacy.
+The portable sweep additionally covers 1×1, 17×13, 127×63, and 320×200 surfaces with explicit time/storage observations. The separate `zeq-texture-validation-v1` and `zeq-doom-visual-v1` host profiles now validate Doom resources and commit the final indexed frame after palette, colormap, fuzz, translucency, HUD, and menu processing. These paths do not replace Doom's renderer or feed visual state back into gameplay. Visual evidence separately identifies renderer, resolution, palette, content, and settings. Pixel, occupancy, or visual hashes never substitute for canonical gameplay hashes or establish competitive legitimacy.
 
 ## 21. Private-LAN command example
 
