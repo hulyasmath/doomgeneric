@@ -38,6 +38,7 @@ rcsid[] = "$Id: i_x.c,v 1.6 1997/02/03 22:45:10 b1 Exp $";
 #include "doomkeys.h"
 
 #include "doomgeneric.h"
+#include "zeq_visual.h"
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -88,6 +89,10 @@ static struct color colors[256];
 
 
 #endif  // CMAP256
+
+// Gamma-corrected RGB bytes used only by the optional visual-evidence path.
+static byte visual_palette[256 * 3];
+extern int detailshift;
 
 
 void I_GetEvent(void);
@@ -366,6 +371,10 @@ void I_FinishUpdate (void)
         line_in += SCREENWIDTH;
     }
 
+    // Optional strict visual commit of the real final indexed Doom frame.
+    // It cannot write back into I_VideoBuffer or any gameplay structure.
+    ZEQ_VisualPresent(I_VideoBuffer, SCREENWIDTH, SCREENHEIGHT,
+                      visual_palette, usegamma, detailshift);
 	DG_DrawFrame();
 }
 
@@ -410,6 +419,9 @@ void I_SetPalette (byte* palette)
         colors[i].r = gammatable[usegamma][*palette++];
         colors[i].g = gammatable[usegamma][*palette++];
         colors[i].b = gammatable[usegamma][*palette++];
+        visual_palette[i * 3] = colors[i].r;
+        visual_palette[i * 3 + 1] = colors[i].g;
+        visual_palette[i * 3 + 2] = colors[i].b;
     }
 
 #ifdef CMAP256
@@ -486,10 +498,3 @@ void I_BindVideoVariables (void)
 {
 }
 
-void I_DisplayFPSDots (boolean dots_on)
-{
-}
-
-void I_CheckIsScreensaver (void)
-{
-}
