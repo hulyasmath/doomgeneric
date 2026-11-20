@@ -43,7 +43,8 @@ The following claims are prohibited:
 | `zeq-doom-save-v1` | 1 | Authenticated save plaintext carried by ZEQC3 |
 | `zeq-mod-manifest-v1` | 1 | Signed mod file manifest |
 | `ZEQ-PARCEL-v2` | 2 | Expiring, replay-protected Doom parcel profile |
-| `zeq-net-v1` | 1 | Deterministic input/state-hash network messages |
+| `zeq-net-session-v1` | 1 | Canonical deterministic network session descriptor |
+| `zeq-doom-net-v1` | 1 | Native two-process binary command/hash/rollback protocol |
 | `zeq-mcp-v1` | 1 | Local headless automation interface |
 
 Existing records retain their original meanings:
@@ -309,7 +310,7 @@ The current binary record is exactly 24 bytes: `ZEQI` at 0, little-endian `uint3
 
 Canonical state is little-endian for fixed-width binary fields and canonical JSON for the outer descriptor. Integers have explicit signedness and width; pointers, padding, host byte order, uninitialized bytes, wall clocks, rendering caches, audio, HUD animation, and sidecar transport state are excluded.
 
-Symbolic IDs replace host pointers and action addresses. The current serializer normalizes mobj traversal stamps and the renderer/automap-owned `ML_MAPPED` bit while retaining gameplay line flags; ordinary save/load keeps the original fields. Cosmetic screen wipes use a separate deterministic display RNG stream and MUST NOT advance the gameplay `rndindex`. Browser and native checkpoints are compared at equal completed-tic counts from the same exported input artifact.
+Symbolic IDs replace host pointers and action addresses. The current serializer normalizes mobj traversal stamps, the prediction-history-only `ticcmd_t.consistancy` diagnostic, mobj sector/blockmap links (`snext`, `sprev`, `bnext`, `bprev`), and the renderer/automap-owned `ML_MAPPED` bit while retaining gameplay line flags; ordinary save/load and rollback snapshots keep the original fields. Thinker-list links and exact mixed mobj/special order are not normalized away. Cosmetic screen wipes use a separate deterministic display RNG stream and MUST NOT advance the gameplay `rndindex`. Browser and native checkpoints are compared at equal completed-tic counts from the same exported input artifact.
 
 Serialization MUST cover every gameplay-relevant subsystem, including:
 
@@ -505,23 +506,64 @@ The inbox limit is 1000 parcels and 64 MiB total serialized parcel data. No parc
 
 ## 15. Deterministic networking and rollback
 
-`split64` supplies timestamps only. Authoritative simulation order is `(gametic, player_id)`, never arrival time or wall-clock phase.
+### 15.1 Implemented scope and identity
 
-`zeq-net-v1` messages include:
+`zeq-doom-net-v1` is implemented in the native headless reference host. Two separate real Doom processes communicate over TCP; the listener is player 0 and the connector is player 1. `ZEQ_NET_LISTEN` and `ZEQ_NET_CONNECT` are mutually exclusive. `ZEQ_NET_SESSION`, falling back to `ZEQ_RUN_ID`, supplies the 128-bit lowercase hexadecimal session ID. `split64` supplies timestamps only: authoritative simulation order is `(gametic, player_id)`, never arrival time or wall-clock phase.
 
-- `hello`: protocol version, run descriptor, player assignment, and feature negotiation;
-- `input`: one or more `zeq-input-v1` records plus acknowledged remote tic;
-- `input-redundancy`: deterministic retransmission of recent inputs;
-- `state-hash`: `zeq-state-hash-v1` at an agreed checkpoint;
-- `desync`: first mismatched tic, local/remote hashes, and run identity;
-- `rollback-request` and `rollback-commit`: restore point and canonical state digest;
-- `close`: session termination and final checkpoint.
+The canonical `zeq-net-session-v1` descriptor contains exactly:
 
-The initial transport profile is length-bounded canonical JSON over WebSocket. Maximum control-message size is 64 KiB. During `hello`, each peer supplies a fresh 128-bit nonce, machine record, and Ed25519 signature over `zeq-net-v1 || session_id || both_nonces || run_hash || player_assignment`; the peer key must match a preconfigured trust policy before inputs are accepted. Plain `ws` is limited to loopback. Remote transport requires `wss` with TLS 1.3 in addition to the signed peer handshake. TCP head-of-line blocking is a known limitation; a future UDP profile requires its own transport version and MUST NOT be claimed as already present.
+```text
+format, protocol, engine_api, engine_build, wad_sha256, content_sha256,
+ruleset, episode, map, skill, settings_sha256, tick_rate, initial_rng,
+session_id
+```
 
-A peer advances only with deterministic inputs. Missing inputs cause prediction according to the declared rollback policy; confirmed inputs trigger restoration of the latest valid canonical checkpoint and exact re-simulation. Rollback restores RNG, thinkers, sectors, projectiles, Zeq cooldowns, pending impulses, and all other `zeq-doom-state-v1` content. Render-only interpolation MUST NOT feed back into simulation.
+`protocol` is `zeq-doom-net-v1`; integer fields are canonical decimal strings. `descriptor_sha256 = SHA256(JCS(descriptor))`. The current profile fixes fresh E1M1, zero-based skill 2 (command-line skill 3), tick rate 35, initial RNG 0, cooperative settings, and the identified unmodified shareware WAD. The peers refuse different session IDs or descriptor digests before gameplay checkpoints. These checks establish matching declared identity/settings, not human identity, remote attestation, or proof that either binary is honest.
 
-State-hash mismatch is a desync report, not automatic proof of cheating. Split64 time does not provide determinism by itself. Real networking requires inputs, transport, canonical state, state hashes, desync detection, and rollback; none is optional in a claim that `zeq-net-v1` is implemented.
+### 15.2 Binary transport
+
+The listener binds an IPv4 loopback address. The connector accepts an IPv4 `host:port` endpoint. The initial hello is exactly 60 bytes:
+
+```text
+0..7    ZEQNET6\0
+8..9    little-endian uint16 protocol version = 1
+10      player count = 2
+11      assigned player = 0 or 1
+12..27  raw 16-byte session ID
+28..59  raw 32-byte descriptor SHA-256
+```
+
+Subsequent frames have a five-byte header: ASCII `ZN`, one-byte type, and little-endian `uint16` body length. Bodies are limited to 128 bytes and the receive buffer to 8192 bytes. Defined frames are:
+
+| Type | Body length | Meaning |
+|---:|---:|---|
+| 1 | 19 | player byte, little-endian zero-based `uint32` tic, then the 14-byte complete `ticcmd_t` payload |
+| 2 | 68 | little-endian one-based completed-tic count, then 64 lowercase ASCII hexadecimal SHA-256 bytes |
+| 3 | 4 | little-endian `uint32` final tic count for clean completion |
+
+The command payload is signed forward/side bytes, little-endian signed 16-bit angle turn, chat/buttons/consistancy/buttons2 bytes, little-endian signed 32-bit inventory, lookfly, and arti. Every command is authoritative for its sender only. Duplicate identical commands are idempotent; conflicting duplicates, invalid player/tic ranges, `BT_SPECIAL`, bad magic, wrong lengths, and oversized frames terminate with a structured network error. No frame carries executable content, a pathname, a secret, or arbitrary process memory.
+
+This profile does not implement TLS, signed peer authentication, matchmaking, NAT traversal, relays, UDP, or browser raw sockets. TCP head-of-line blocking remains. The reference listener is loopback-only; a test proxy can provide genuine transport impairment but does not turn the profile into a secure Internet service. Any such additions require separately versioned and tested protocols.
+
+### 15.3 Prediction, acknowledgement, and rollback
+
+Each process predicts at most 8 tics beyond its confirmed frontier. The command/snapshot window is 32 tics and each snapshot buffer is 262144 bytes. A missing remote command repeats the latest available remote simulation command with chat and special-command bits cleared, or zero if no earlier command exists. Local commands are never predicted from the remote peer.
+
+A tic becomes confirmed only after both players' authoritative commands exist and the corrected state has been executed. Confirmed checkpoints use `zeq-state-hash-v1`, add `protocol`, `player`, and `confirmed: true`, and chain `previous_state_sha256`. The one-based wire hash tic corresponds to the zero-based executed command at `tic - 1`.
+
+Prediction cannot advance beyond `peer_confirmed + 32`. Received peer checkpoint hashes act as confirmation acknowledgements. Rate-limited retransmission covers every local command not acknowledged by both local and peer confirmation, beginning at `min(local_confirmed, peer_confirmed)`; a recent-16-only range is not sufficient under sustained loss.
+
+When a late remote simulation command differs from the prediction, the engine restores that tic's actual pre-tic snapshot and resimulates through the former predicted frontier. Snapshot restore uses Doom's real save unarchive functions plus explicit gameplay globals, Zeq save-extension state, stable symbolic target/tracer/attacker/body/brain/sound pointers, mobj `floorz`/`ceilingz`, exact mixed thinker order, and Zeq combat counters. Rollback after tic 0 must reproduce the preceding post-tic canonical hash before resimulation. Prediction-dependent `consistancy` diagnostics are excluded from misprediction comparison, rebound from restored Doom state before `RunTic`, and normalized only in canonical serialization; duplicate-frame identity still compares the complete original command.
+
+Predicted and rolled-back engine events and impulse records are drained rather than appended to confirmed evidence. Only confirmed tics enter the network checkpoint chain. Rendering or interpolation MUST NOT feed back into simulation.
+
+Peers compare confirmed canonical hashes whether the remote hash arrives before or after the local checkpoint. A mismatch emits `net-desync` with the completed tic and both hashes and stops with `canonical-hash-mismatch`. This is a desync diagnostic, not proof of cheating. Split64 time, a hash chain, or signed events alone do not provide determinism or rollback.
+
+### 15.4 Current limits and acceptance
+
+The implemented acceptance harness launches two actual native engines and checks 140 direct tics plus 180 tics through a real TCP proxy with delay, jitter, loss, and duplicates. It requires identical linked confirmed hashes, genuine rollback/misprediction/resimulation, clean completion, descriptor/descriptor-digest agreement, and clean single-player regressions. Negative gates cover descriptor/session mismatch, protocol/player mismatch, malformed input, conflicting commands, bad magic, oversized frames, and deliberate hash corruption in both directions.
+
+Current non-goals are browser multiplayer, more than two players, other maps or arbitrary initial saves, mid-game join, `BT_SPECIAL`, multi-file/PK3 session content, and production Internet security. Longer soak/fuzz/resource/performance testing and broader scenario coverage remain Phase 8 work. No competitive-legitimacy claim follows.
 
 ## 16. Headless mode and MCP
 
@@ -583,7 +625,7 @@ Phase gates require shared C, JavaScript, and Python vectors plus engine-level t
 - an injected one-byte deterministic state change produces a desync at the first affected checkpoint;
 - transport loss does not change Doom's 35 Hz simulation or invent remote inputs.
 
-## 18. Implementation status through Phase 4 replay and Phase 5 single-PWAD loading
+## 18. Implementation status through Phase 6 native networking/rollback
 
 | Capability | Status |
 |---|---|
@@ -609,7 +651,8 @@ Phase gates require shared C, JavaScript, and Python vectors plus engine-level t
 | Expiring encrypted parcels | Phase 5 SDK milestone implemented and tested: authenticated encryption, expiry, bounded inbox, and replay refusal; plaintext is never executed or auto-loaded |
 | Signed single-PWAD loader | Phase 5 reference-host milestone implemented and tested: SDK authentication/trust plus C-owned bytes, independent C SHA-256, structural bounds checks, memory-backed lump reads, and evidence-chain records; exactly one PWAD per manifest |
 | Multi-file and PK3 loading | Pending: multi-file order and a bounded PK3 reader are not implemented |
-| Deterministic netcode and rollback | Specified; not implemented |
+| Native two-client netcode and rollback | Phase 6 reference profile implemented and tested: real TCP, complete commands, 8-tic prediction, bounded snapshots, retransmission, rollback/resimulation, matching confirmed hashes, refusal, and bidirectional desync detection |
+| Browser or secure public multiplayer | Pending: no browser transport, signed peer authentication, TLS, matchmaking, mid-game join, or more-than-two-player profile |
 
 ## 19. Phase 0 privacy and claim review
 
@@ -617,4 +660,4 @@ The exposure audit covered all ten public Zeq commits and 22 unique historical b
 
 Subsequent explicit authorization superseded the earlier push freeze for source delivery. Engine/reference-host source belongs in `hulyasmath/doomgeneric`; portable SDK source belongs in `hulyasmath/zeq-doomgeneric`; roadmap and integration documents are mirrored. Each uploaded file must be fetched back and compared with the exact local Git blob SHA. No repository deletion, history rewrite, visibility change, or claim that prior public exposure can be erased is authorized.
 
-The upstream baseline remains `e257a09527062bfb986b6e5e0780839b6cbd5b71`. Large arithmetic vectors are regenerated by committed Python generators rather than treated as hand-written source. WADs, private capsules, keys, machine logs, and build outputs are excluded. The Phase 5 signed-content SDK and single-PWAD real-engine loader are implemented and tested; multi-file/PK3 loading remains pending and no parcel executes or loads content. Phase 6 deterministic networking/rollback remains future work.
+The upstream baseline remains `e257a09527062bfb986b6e5e0780839b6cbd5b71`. Large arithmetic vectors are regenerated by committed Python generators rather than treated as hand-written source. WADs, private capsules, keys, machine logs, and build outputs are excluded. The Phase 5 signed-content SDK and single-PWAD real-engine loader are implemented and tested; multi-file/PK3 loading remains pending and no parcel executes or loads content. The Phase 6 native two-process reference profile is implemented and tested; browser networking, production transport security, and broader hardening remain future work.
