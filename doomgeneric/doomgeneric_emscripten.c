@@ -148,8 +148,36 @@ static void handleKeyInput()
 }
 
 
+static void installDomInputGuard(void)
+{
+  /*
+   * SDL's browser keypress callback prevents the default action whenever it
+   * handles a key. That is correct for the game canvas, but it also cancels
+   * beforeinput when a dialog field has focus. Stop the event before SDL sees
+   * it, without preventing the browser's normal text editing or form submit.
+   * No key value or field contents are retained by this guard.
+   */
+  EM_ASM({
+    if (window.__zeqDomInputGuardInstalled) return;
+    const guard = function(event) {
+      const target = event.target;
+      if (target && (target.isContentEditable ||
+          /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)))
+      {
+        event.stopImmediatePropagation();
+      }
+    };
+    window.addEventListener("keydown", guard, true);
+    window.addEventListener("keypress", guard, true);
+    window.addEventListener("keyup", guard, true);
+    window.__zeqDomInputGuardInstalled = true;
+  });
+}
+
 void DG_Init()
 {
+  installDomInputGuard();
+
   window = SDL_CreateWindow("DOOM",
                             SDL_WINDOWPOS_UNDEFINED,
                             SDL_WINDOWPOS_UNDEFINED,
@@ -210,22 +238,4 @@ int DG_GetKey(int* pressed, unsigned char* doomKey)
     return 1;
   }
 
-  return 0;
-}
-
-void DG_SetWindowTitle(const char * title)
-{
-  if (window != NULL)
-  {
-    SDL_SetWindowTitle(window, title);
-  }
-}
-
-int main(int argc, char **argv)
-{
-    doomgeneric_Create(argc, argv);
-
-    emscripten_set_main_loop(doomgeneric_Tick, 0, 1);
-    
-    return 0;
 }
