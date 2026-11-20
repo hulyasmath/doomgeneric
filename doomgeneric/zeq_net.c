@@ -484,7 +484,7 @@ static void pump_socket(void)
     }
 }
 
-static int make_listener(const char *port_text)
+static int make_listener(const char *port_text, const char *bind_text)
 {
     int fd;
     int one = 1;
@@ -496,12 +496,19 @@ static int make_listener(const char *port_text)
     parsed = strtol(port_text, &end, 10);
     if (errno || *end || parsed < 1 || parsed > 65535) return -1;
     port = (int)parsed;
+    memset(&address, 0, sizeof(address));
+    address.sin_family = AF_INET;
+    if (bind_text)
+    {
+        /* LAN exposure is explicit and limited to one numeric local interface.
+         * In particular, do not turn a convenience value into INADDR_ANY. */
+        if (inet_pton(AF_INET, bind_text, &address.sin_addr) != 1
+            || address.sin_addr.s_addr == htonl(INADDR_ANY)) return -1;
+    }
+    else address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0) return -1;
     setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
-    memset(&address, 0, sizeof(address));
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     address.sin_port = htons((uint16_t)port);
     if (bind(fd, (struct sockaddr *)&address, sizeof(address)) != 0 || listen(fd, 1) != 0)
     {
@@ -548,8 +555,22 @@ void ZEQ_NetInit(void)
 {
     const char *listen_port = getenv("ZEQ_NET_LISTEN");
     const char *connect_to = getenv("ZEQ_NET_CONNECT");
+    const char *bind_address = getenv("ZEQ_NET_BIND");
     const char *session;
-    if (!listen_port && !connect_to) return;
+    if (!listen_port && !connect_to)
+    {
+        if (bind_address)
+        {
+            fprintf(stderr, "ZEQ_NET_BIND requires ZEQ_NET_LISTEN\n");
+            exit(2);
+        }
+        return;
+    }
+    if (bind_address && !listen_port)
+    {
+        fprintf(stderr, "ZEQ_NET_BIND requires ZEQ_NET_LISTEN\n");
+        exit(2);
+    }
     if (listen_port && connect_to)
     {
         fprintf(stderr, "ZEQ_NET_LISTEN and ZEQ_NET_CONNECT are mutually exclusive\n");
@@ -576,6 +597,7 @@ int ZEQ_NetConnect(void)
 {
     const char *listen_port = getenv("ZEQ_NET_LISTEN");
     const char *connect_to = getenv("ZEQ_NET_CONNECT");
+    const char *bind_address = getenv("ZEQ_NET_BIND");
     const char *engine_build = getenv("ZEQ_NET_ENGINE_BUILD");
     const char *corrupt_at = getenv("ZEQ_NET_CORRUPT_HASH_AT");
     const char *ruleset = ZEQ_RulesetName(ZEQ_GetRuleset());
@@ -607,8 +629,19 @@ int ZEQ_NetConnect(void)
     if (listen_port)
     {
         struct pollfd pfd;
-        listener = make_listener(listen_port);
+        int loopback_bind = 1;
+        if (bind_address)
+        {
+            struct in_addr parsed_bind;
+            if (inet_pton(AF_INET, bind_address, &parsed_bind) == 1)
+                loopback_bind = (ntohl(parsed_bind.s_addr) >> 24) == 127;
+        }
+        listener = make_listener(listen_port, bind_address);
         if (listener < 0) { net_fail("listen"); return 0; }
+        printf("ZEQJ{\"kind\":\"net-listen\",\"session_id\":\"%s\",\"transport\":\"tcp-ipv4\",\"bind\":\"%s\",\"bind_scope\":\"%s\"}\n",
+               net_session, bind_address ? bind_address : "127.0.0.1",
+               bind_address ? (loopback_bind ? "explicit-loopback" : "explicit-non-loopback") : "loopback-default");
+        fflush(stdout);
         pfd.fd = listener;
         pfd.events = POLLIN;
         if (poll(&pfd, 1, env_int("ZEQ_NET_TIMEOUT_MS", 10000, 1, 120000)) <= 0)
