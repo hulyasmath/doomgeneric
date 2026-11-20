@@ -1,6 +1,10 @@
 #!/bin/sh
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+CLEAN=1
+if [ "${1:-}" = "--no-clean" ]; then CLEAN=0
+elif [ "$#" -ne 0 ]; then echo "Usage: $0 [--no-clean]" >&2; exit 2; fi
+EMSCRIPTEN_REQUIRED=3.1.64
 # Generated vectors/tables are source-reproducible, not committed blobs.
 python3 "$ROOT/sdk/zeq_time.py" --generate
 python3 "$ROOT/sdk/zeq_physics.py" --generate
@@ -11,9 +15,16 @@ if [ ! -f doom1.wad ]; then
   echo "Fetching shareware doom1.wad..."
   curl -L --fail -o /tmp/doom-wad.tar.gz \
     https://deb.debian.org/debian/pool/non-free/d/doom-wad-shareware/doom-wad-shareware_1.9.fixed.orig.tar.gz
-  tar -xzf /tmp/doom-wad.tar.gz --wildcards '*/doom1.wad' --strip-components 2 || \
-    tar -xzf /tmp/doom-wad.tar.gz
-  find . -maxdepth 2 -name doom1.wad -exec mv {} . \; -quit
+  WAD_TMP=$(mktemp -d)
+  tar -xzf /tmp/doom-wad.tar.gz -C "$WAD_TMP"
+  WAD_SOURCE=$(find "$WAD_TMP" -type f -name doom1.wad -print -quit)
+  if [ -z "$WAD_SOURCE" ]; then
+    echo "doom1.wad not found in the verified shareware archive" >&2
+    rm -rf "$WAD_TMP"
+    exit 1
+  fi
+  cp "$WAD_SOURCE" doom1.wad
+  rm -rf "$WAD_TMP"
 fi
 echo "$WAD_SHA256  doom1.wad" | sha256sum -c -
 
@@ -45,7 +56,14 @@ if ! command -v emcc >/dev/null 2>&1; then
     exit 1
   fi
 fi
+EMCC_VERSION=$(emcc --version 2>/dev/null | head -1)
+case "$EMCC_VERSION" in
+  *"$EMSCRIPTEN_REQUIRED"*) ;;
+  *) echo "Pinned Emscripten $EMSCRIPTEN_REQUIRED required; found: $EMCC_VERSION" >&2; exit 1 ;;
+esac
+printf 'Verified compiler: %s\n' "$EMCC_VERSION"
 cd "$ROOT/doomgeneric"
+if [ "$CLEAN" -eq 1 ]; then make -f Makefile.emscripten clean; fi
 make -f Makefile.emscripten -j2
 
 copy_verified()
@@ -64,6 +82,8 @@ copy_verified()
   mv -f "$temporary" "$destination"
 }
 
+# A release directory must not retain files from an older build.
+rm -rf "$ROOT/dist"
 mkdir -p "$ROOT/dist" "$ROOT/dist/sdk" "$ROOT/dist/sdk/zq/examples/doom"
 SOURCE_COMMIT=$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || printf '%040d' 0)
 printf '/* Generated build identity. */\nwindow.ZeqBuildInfo = Object.freeze({ sourceCommit: "%s" });\n' "$SOURCE_COMMIT" > "$ROOT/dist/sdk/zeq-build-info.js.tmp"
@@ -87,4 +107,31 @@ copy_verified "$ROOT/sdk/zeq-security.js" "$ROOT/dist/sdk/zeq-security.js"
 copy_verified "$ROOT/sdk/zeq-capsule.js" "$ROOT/dist/sdk/zeq-capsule.js"
 copy_verified "$ROOT/sdk/zeq-content.js" "$ROOT/dist/sdk/zeq-content.js"
 copy_verified "$ROOT/sdk/zeq-pixel.js" "$ROOT/dist/sdk/zeq-pixel.js"
-echo "Browser build written to $ROOT/dist (all copied artifacts verified byte-for-byte)"
+ROOT="$ROOT" SOURCE_COMMIT="$SOURCE_COMMIT" EMCC_VERSION="$EMCC_VERSION" python3 - <<'PY'
+import hashlib
+import json
+import os
+from pathlib import Path
+
+root = Path(os.environ["ROOT"])
+dist = root / "dist"
+artifacts = []
+for path in sorted(p for p in dist.rglob("*") if p.is_file()):
+    data = path.read_bytes()
+    artifacts.append({
+        "path": path.relative_to(dist).as_posix(),
+        "bytes": len(data),
+        "sha256": hashlib.sha256(data).hexdigest(),
+    })
+manifest = {
+    "format": "zeq-release-manifest-v1",
+    "target": "doomgeneric-browser-wasm",
+    "sourceCommit": os.environ["SOURCE_COMMIT"],
+    "toolchain": os.environ["EMCC_VERSION"],
+    "artifacts": artifacts,
+    "evidenceScope": "build identity and byte inventory only; test and delivery gates are separate",
+}
+(dist / "zeq-release-manifest.json").write_text(
+    json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+PY
+echo "Browser build written to $ROOT/dist (all copied artifacts verified byte-for-byte; release manifest generated)"
