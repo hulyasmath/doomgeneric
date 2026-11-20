@@ -49,6 +49,12 @@ let impulseRecords = [];
 let eventChain = Promise.resolve();
 let ledger = [];
 let touchAim = null;
+let joystickPointer = null;
+let expandedFallback = false;
+let gamepadFrame = 0;
+let analogCommand = { forward: 0, side: 0, turn: 0 };
+const analogSources = new Map();
+const gamepadButtons = new Map();
 const keyHolds = new Map();
 const keyCounts = new Map();
 const MIN_HOLD_MS = 48;
@@ -116,6 +122,11 @@ function releaseKey(id, immediate = false) {
 }
 function releaseAll() {
   [...keyHolds.values()].forEach(finishHold);
+  gamepadButtons.clear();
+  analogSources.clear();
+  updateAnalogMove();
+  resetJoystick();
+  touchAim = null;
   if (mouseDown) { callReadyMouse(0, 0, 0); mouseDown = false; }
 }
 function isKeyHeld(id) {
@@ -124,6 +135,30 @@ function isKeyHeld(id) {
 }
 function callReadyMouse(dx, dy, buttons) {
   if (ready) call("ZEQ_Mouse", [dx, dy, buttons]);
+}
+function updateAnalogMove() {
+  const combined = { forward: 0, side: 0, turn: 0 };
+  for (const source of analogSources.values()) {
+    combined.forward += source.forward;
+    combined.side += source.side;
+    combined.turn += source.turn;
+  }
+  for (const axis of Object.keys(combined)) combined[axis] = Math.max(-127, Math.min(127, Math.round(combined[axis])));
+  if (combined.forward === analogCommand.forward && combined.side === analogCommand.side && combined.turn === analogCommand.turn) return;
+  analogCommand = combined;
+  if (ready) call("ZEQ_SetAnalogMove", [combined.forward, combined.side, combined.turn]);
+}
+function setAnalogSource(id, forward, side, turn) {
+  const source = { forward: forward || 0, side: side || 0, turn: turn || 0 };
+  if (!source.forward && !source.side && !source.turn) analogSources.delete(id);
+  else analogSources.set(id, source);
+  updateAnalogMove();
+}
+function analogAxis(value) {
+  const magnitude = Math.abs(Number(value) || 0);
+  if (magnitude < 0.18) return 0;
+  const scaled = (magnitude - 0.18) / 0.82;
+  return Math.sign(value) * Math.round(Math.min(1, scaled) * 127);
 }
 
 var Module = {
@@ -301,6 +336,7 @@ function loadRawSave(data) {
     releaseAll();
     Module.FS.writeFile("./.savegame/doomsav0.dsg", data);
     started = true;
+    document.body.classList.add("game-started");
     resetCapture(false);
     resetCanonical(0);
     $("title-screen").classList.add("dismissed");
@@ -361,6 +397,14 @@ function queueEngineEvent(event) {
     safeSet(LEDGER_KEY, JSON.stringify(ledger));
     updateLedger();
     addEventToStream(record);
+    // Optional contract observation is asynchronous and non-authoritative. It
+    // cannot block play, alter canonical state, or undo an emitted C event.
+    if (typeof window.ZeqHostHook === "function") {
+      try {
+        Promise.resolve(window.ZeqHostHook({ type: record.type, gametic: record.tic, phase: record.phase, value: record.value }))
+          .catch((error) => console.warn("Zeq contract hook failed", error));
+      } catch (error) { console.warn("Zeq contract hook failed", error); }
+    }
     if (sidecarOn) {
       const bridge = sidecarBridge();
       if (bridge) bridge.event({ type: record.type, tic: record.tic, phase: record.phase, value: record.value });
@@ -940,6 +984,7 @@ function startDeployment() {
   releaseAll();
   document.querySelectorAll("dialog[open]").forEach((dialog) => dialog.close());
   started = true;
+  document.body.classList.add("game-started");
   // Discard attract-demo records, then begin a fresh ruleset-scoped run chain.
   while (call("ZEQ_GetEvent")) {}
   while (call("ZEQ_GetImpulseRecord")) {}
@@ -968,12 +1013,43 @@ $("export-save-button").addEventListener("click", exportSave);
 $("capsule-form").addEventListener("submit", (event) => { event.preventDefault(); submitCapsule(); });
 $("pause-button").addEventListener("click", () => { keyEvent(true, 255); keyEvent(false, 255); canvas.focus(); });
 $("sound-button").addEventListener("click", () => { muted = !muted; persistSettings(); });
+function fullscreenElement() {
+  return document.fullscreenElement || document.webkitFullscreenElement || null;
+}
+function syncFullscreenState() {
+  const active = !!fullscreenElement() || expandedFallback;
+  $("screen-frame").classList.toggle("is-fullscreen", active);
+  document.body.classList.toggle("fullscreen-active", active);
+  $("fullscreen-button").textContent = active ? "EXIT" : "FULL";
+  $("fullscreen-button").setAttribute("aria-label", active ? "Exit fullscreen" : "Enter fullscreen");
+}
+function setExpandedFallback(active) {
+  expandedFallback = active;
+  $("screen-frame").classList.toggle("expanded-fallback", active);
+  syncFullscreenState();
+  resetJoystick();
+}
 $("fullscreen-button").addEventListener("click", async () => {
+  const frame = $("screen-frame");
   try {
-    if (document.fullscreenElement) await document.exitFullscreen();
-    else await $("screen-frame").requestFullscreen();
-  } catch (_) { toast("FULLSCREEN IS NOT AVAILABLE"); }
+    if (fullscreenElement()) {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) await exit.call(document);
+    } else if (expandedFallback) setExpandedFallback(false);
+    else {
+      const request = frame.requestFullscreen || frame.webkitRequestFullscreen;
+      if (!request) setExpandedFallback(true);
+      else {
+        try { await request.call(frame); }
+        catch (_) { setExpandedFallback(true); }
+      }
+    }
+  } catch (_) { setExpandedFallback(!expandedFallback); }
+  syncFullscreenState();
 });
+document.addEventListener("fullscreenchange", syncFullscreenState);
+document.addEventListener("webkitfullscreenchange", syncFullscreenState);
+window.addEventListener("orientationchange", () => { resetJoystick(); touchAim = null; });
 document.querySelectorAll("[data-open]").forEach((button) => button.addEventListener("click", () => {
   releaseAll();
   if (document.pointerLockElement) document.exitPointerLock();
@@ -1058,6 +1134,9 @@ $("download-ledger").addEventListener("click", async () => {
 });
 
 window.addEventListener("keydown", (event) => {
+  if (event.code === "Escape" && expandedFallback) {
+    event.preventDefault(); event.stopImmediatePropagation(); setExpandedFallback(false); return;
+  }
   const key = keys[event.code];
   if (key === undefined || !started || document.querySelector("dialog[open]") || /INPUT|BUTTON/.test(event.target.tagName)) return;
   event.preventDefault(); event.stopImmediatePropagation();
@@ -1104,6 +1183,92 @@ canvas.addEventListener("pointermove", (event) => {
 function endTouchAim(event) { if (touchAim?.id === event.pointerId) touchAim = null; }
 canvas.addEventListener("pointerup", endTouchAim);
 canvas.addEventListener("pointercancel", endTouchAim);
+canvas.addEventListener("lostpointercapture", endTouchAim);
+
+function resetJoystick() {
+  joystickPointer = null;
+  const joystick = $("touch-joystick");
+  if (!joystick) return;
+  joystick.classList.remove("active");
+  $("joystick-knob").style.transform = "translate(0px, 0px)";
+  setAnalogSource("touch-joystick", 0, 0, 0);
+}
+function updateJoystick(event) {
+  if (event.pointerId !== joystickPointer) return;
+  event.preventDefault();
+  const ring = $("touch-joystick").querySelector(".joystick-ring");
+  const rect = ring.getBoundingClientRect();
+  const radius = Math.max(1, rect.width / 2);
+  let dx = event.clientX - (rect.left + radius);
+  let dy = event.clientY - (rect.top + radius);
+  const distance = Math.hypot(dx, dy);
+  const limit = radius * 0.68;
+  if (distance > limit) { dx *= limit / distance; dy *= limit / distance; }
+  const nx = dx / limit;
+  const ny = dy / limit;
+  $("joystick-knob").style.transform = `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px)`;
+  const turn = Math.abs(nx) < 0.12 ? 0 : Math.round(nx * 127);
+  const forward = Math.abs(ny) < 0.12 ? 0 : Math.round(-ny * 127);
+  setAnalogSource("touch-joystick", forward, 0, turn);
+}
+$("touch-joystick").addEventListener("pointerdown", (event) => {
+  if (!started || joystickPointer !== null) return;
+  event.preventDefault();
+  joystickPointer = event.pointerId;
+  $("touch-joystick").classList.add("active");
+  try { $("touch-joystick").setPointerCapture(event.pointerId); } catch (_) {}
+  updateJoystick(event);
+});
+$("touch-joystick").addEventListener("pointermove", updateJoystick);
+function endJoystick(event) {
+  if (event.pointerId !== joystickPointer) return;
+  event.preventDefault();
+  resetJoystick();
+}
+$("touch-joystick").addEventListener("pointerup", endJoystick);
+$("touch-joystick").addEventListener("pointercancel", endJoystick);
+$("touch-joystick").addEventListener("lostpointercapture", endJoystick);
+
+const gamepadButtonKeys = [[0, 162], [2, 163], [3, 9], [6, 163], [7, 163], [8, 9], [9, 255], [10, 182], [12, 173], [13, 175], [14, 172], [15, 174]];
+const gamepadConnections = new Set();
+function syncGamepadButton(padIndex, buttonIndex, key, down, active) {
+  const stateId = `${padIndex}:${buttonIndex}`;
+  const holdId = `pad-${padIndex}-${buttonIndex}`;
+  const wasDown = gamepadButtons.get(stateId) === true;
+  const isDown = active && down;
+  if (isDown === wasDown) return;
+  gamepadButtons.set(stateId, isDown);
+  if (isDown) pressKey(holdId, key);
+  else releaseKey(holdId);
+}
+function pollGamepads() {
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  const seen = new Set();
+  const active = started && !document.hidden && !document.querySelector("dialog[open]");
+  for (const pad of pads || []) {
+    if (!pad) continue;
+    seen.add(pad.index);
+    const leftX = active ? analogAxis(pad.axes[0]) : 0;
+    const leftY = active ? analogAxis(pad.axes[1]) : 0;
+    const rightX = active ? analogAxis(pad.axes[2]) : 0;
+    setAnalogSource(`gamepad-${pad.index}`, -leftY, leftX, rightX);
+    for (const [buttonIndex, key] of gamepadButtonKeys) {
+      const button = pad.buttons[buttonIndex];
+      syncGamepadButton(pad.index, buttonIndex, key, !!button && (button.pressed || button.value > 0.5), active);
+    }
+  }
+  for (const index of gamepadConnections) {
+    if (seen.has(index)) continue;
+    setAnalogSource(`gamepad-${index}`, 0, 0, 0);
+    for (const id of [...keyHolds.keys()]) if (id.startsWith(`pad-${index}-`)) releaseKey(id, true);
+    for (const id of [...gamepadButtons.keys()]) if (id.startsWith(`${index}:`)) gamepadButtons.delete(id);
+  }
+  gamepadConnections.clear();
+  for (const index of seen) gamepadConnections.add(index);
+  gamepadFrame = requestAnimationFrame(pollGamepads);
+}
+window.addEventListener("gamepadconnected", () => toast("EXTERNAL GAMEPAD CONNECTED"));
+window.addEventListener("gamepaddisconnected", () => toast("EXTERNAL GAMEPAD DISCONNECTED"));
 
 document.querySelectorAll("[data-key]").forEach((button) => {
   const key = Number(button.dataset.key);
@@ -1148,6 +1313,7 @@ window.ZeqDiagnostics = Object.freeze({
   },
   capsuleStored: () => { const data = readSave(); return data ? { bytes: data.length, zeqc3: isZeqc3(data), magic: bytesToBase64(data.subarray(0, 5)) } : null; },
   canonical: () => ({ checkpoints: canonicalCheckpoints.map((checkpoint) => ({ ...checkpoint })), dropped: canonicalDropped, errors: canonicalErrors }),
+  controls: () => ({ analog: { ...analogCommand }, joystickPointer, gamepads: [...gamepadConnections], fullscreen: !!fullscreenElement(), expandedFallback, touchParent: $("touch-controls").parentElement.id }),
   input: () => ({ holds: [...keyHolds.values()].map((hold) => ({ id: hold.id, key: hold.key, released: hold.released, finished: hold.finished })), counts: Object.fromEntries(keyCounts) })
 });
 
@@ -1155,5 +1321,6 @@ restoreLedger();
 refreshContinue();
 applySettings();
 runExactConformance(false);
+pollGamepads();
 setInterval(pollSnapshot, 50);
 setInterval(drainEvents, 40);
