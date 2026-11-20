@@ -17,6 +17,12 @@ real engine paths (`P_FireWeapon`, `P_DamageMobj`, `P_KillMobj`, `P_MovePlayer`,
   wire formats and Doom-specific integration rules.
 - **[Doom contract observation](docs/zeq-doom-integration.md)** — the reviewed
   PR #3 proof of concept, its reproduced tests, and its authority limits.
+- **[Portable profiles](docs/zeq-portable-profiles-v1.md)** and
+  **[conformance/support matrix](docs/zeq-conformance-matrix-v1.md)** — exact
+  Phase 9–13 APIs, tested runtimes, support policy, and residual limitations.
+- **[Release evidence](docs/zeq-release-evidence-v1.md)** — the local regression,
+  fuzz, performance, visual, networking, and build-manifest record, with delivery
+  gates and unsupported claims kept explicit.
 
 `hulyasmath/doomgeneric` owns the complete game and reference integration.
 `hulyasmath/zeq-doomgeneric` is the portable SDK distribution: portable modules,
@@ -24,14 +30,16 @@ schemas, vectors, tests, and integration guides, without a second maintained Doo
 game tree. The repositories align by SDK release identity, not by mirroring every
 engine file into both projects.
 
-Phases 0–4, the Phase 5 signed-content/sealed-parcel SDK milestone, the single
-signed-PWAD reference-host loader, and the Phase 6 native two-client reference
-profile are implemented and tested as described below. Multi-file/PK3 loading,
-remaining Phase 5 hardening, browser networking, and broader network hardening
-remain open. Phase 7 has a tested portable pixel-conformance slice, while full renderer integration and visual integrity remain pending; Phases 8–10 are pending. Phase 11 has only the narrow contract-
-observation proof of concept described below, and the general Phase 11–13 programs
-remain unfinished. The roadmap distinguishes partial, pending, and proposed work
-so future framework capabilities are not presented as shipping features.
+Phases 0–7 have implemented and locally tested reference profiles, including
+signed single-PWAD and bounded multi-PWAD PK3 content, native two-client TCP
+rollback, pixel/resource validation, and real-host visual commitments. Phase 8
+release closeout is in progress. The portable Phase 9–13 quantity, scientific
+numerical, experiment, lifecycle, second-host chamber, and domain-pack modules
+are implemented and locally tested within their documented scopes. Browser
+networking, production Internet security, physical two-machine validation,
+external-machine reproduction, plugin execution/sandboxing, and arbitrary
+third-party engine compatibility remain outside those profiles. The roadmap
+and conformance matrix distinguish local evidence from delivery and certification.
 
 ## What the Zeq layer adds
 
@@ -86,18 +94,19 @@ so future framework capabilities are not presented as shipping features.
   replay scope is fresh single-player E1M1. The separate browser-to-native gate
   exports actual browser input and requires equal canonical hashes at matching
   completed tics with the real renderer enabled.
-- **Signed content and single-PWAD loading (Phase 5)** — `zeq-content.js`
+- **Signed PWAD/PK3 content and sealed parcels (Phase 5)** — `zeq-content.js`
   implements Ed25519-signed mod manifests, explicit publisher trust, bound file
   sizes and SHA-256 digests, safe relative paths, machine records, and expiring
   sealed parcels using X25519, HKDF-SHA256, and AES-256-GCM. Independent Python
-  and JavaScript vectors match exactly. The reference host additionally accepts a
-  compatible `doomgeneric-zeq-v1` manifest containing exactly one PWAD and no
-  dependencies. After SDK verification, the C engine copies the bytes,
-  independently recomputes SHA-256, bounds-checks the PWAD directory and every
-  lump, and installs the same owned buffer through a memory-backed WAD reader.
-  `zeq-content-load-evidence-v1` records trust, ruleset, content identity, and the
-  result in the signed local evidence chain. Multi-file mods and PK3 remain
-  pending; parcels never execute or automatically load plaintext.
+  and JavaScript vectors match exactly. The reference host accepts one PWAD or a
+  bounded `zeq-pk3-v1` package containing one to sixteen PWADs for a compatible,
+  dependency-free `doomgeneric-zeq-v1` manifest. Stored/deflated regular files,
+  actual-output bounds, CRC/local-header checks, and adversarial path refusal are
+  tested. Manifest order determines load order; all PWADs pass non-committing C
+  validation before the first append. The engine owns immutable bytes,
+  independently recomputes SHA-256, checks every lump range, and records
+  `zeq-content-load-evidence-v1`. Parcels never execute or automatically load
+  plaintext; unexpected append-time failure is not claimed to roll back.
 - **Deterministic two-client networking and rollback (Phase 6 reference profile)** —
   two separate native headless Doom processes exchange complete authoritative
   `ticcmd_t` commands over real TCP. A versioned session descriptor binds engine,
@@ -113,12 +122,29 @@ so future framework capabilities are not presented as shipping features.
   a fresh-E1M1, two-player native conformance profile only: browser multiplayer,
   authenticated peer identity, encryption/TLS, Internet matchmaking, mid-game
   join, and more than two players are not supplied.
-- **Deterministic raster primitives (Phase 7 bounded slice)** — portable C and
+- **Deterministic raster and visual evidence (Phase 7)** — portable C and
   JavaScript `zeq-pixel-v1` modules provide opaque per-pixel ownership/depth
   arbitration, rational projection, clipped spans/columns, and canonical frame/
-  occupancy bytes. One fixed scene matches byte-for-byte across native C,
-  JavaScript BigInt, and WASM. Normal Doom rendering is unchanged; host renderer
-  integration, texture validation, translucency/fuzz, and broader gates remain.
+  occupancy bytes. Native C, JavaScript BigInt, and WASM match across fixed and
+  multi-resolution scenes. `zeq-texture-validation-v1` checks Doom texture,
+  patch, flat, palette, and colormap bounds. The scoped `zeq-doom-visual-v1`
+  profile commits the actual final indexed frame after palette, colormap, fuzz,
+  translucency, HUD, and menu processing. Doom remains the display renderer;
+  visual hashes never replace gameplay hashes.
+- **Portable scientific and application profiles (Phases 9–12)** — bounded exact
+  quantities, dimensions, units, equations, and uncertainty; explicitly
+  nonauthoritative Float64 numerical methods; deterministic scenarios,
+  experiments, sweeps, cancellation, and reproduction; and signed application
+  ownership/lifecycle records with default-deny scoped host capabilities. Local
+  tests cover analytical references, adversarial inputs, state transitions, and
+  actual experiment reruns. These modules do not claim physical accuracy,
+  bitwise Float64 portability, external-machine reproduction, or plugin safety.
+- **Second non-Doom reference host (Phase 13)** — independent C99, JavaScript,
+  and Python `zeq-chamber-v1` implementations run an exact Q10 bounded particle
+  simulation with canonical state and replay. Differential/property tests,
+  experiment reproduction, a synthetic domain pack, and a support matrix show
+  the SDK conformance approach outside Doom without claiming arbitrary engine
+  compatibility or calibrated physics.
 - **Portable contract observation (reviewed PR #3 proof of concept)** — an
   engine-neutral host layer maps real Doom events into weapon, player, ruleset,
   level, and save-load contract decisions. The browser's optional ZEQ CONTRACTS
@@ -234,8 +260,9 @@ generators; generated outputs and WAD/build artifacts are not source-controlled.
   content, and more than two players are unsupported. The TCP handshake checks a
   shared session ID and descriptor digest but does not authenticate a person or
   protect transport; do not expose it as a secure public multiplayer service.
-- Phase 5 loads exactly one verified PWAD per accepted manifest in the reference
-  host. Multi-file mods and PK3 are unsupported. Parcels never execute content.
+- Phase 5 loads one verified PWAD or a bounded PK3 containing one to sixteen
+  PWADs per accepted manifest in the reference host. It is not a general PK3 or
+  code-mod system, and parcels never execute or automatically load content.
 - The ledger is tamper-evident, not tamper-proof; it cannot prove a clean run.
 - Contract observation covers five narrow rules and is not authoritative
   enforcement, anti-cheat, comprehensive Doom semantics, or proof of honest input.
