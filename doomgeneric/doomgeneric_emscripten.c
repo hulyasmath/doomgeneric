@@ -238,4 +238,22 @@ int DG_GetKey(int* pressed, unsigned char* doomKey)
     return 1;
   }
 
+  return 0;
+}
+
+void DG_SetWindowTitle(const char * title)
+{
+  if (window != NULL)
+  {
+    SDL_SetWindowTitle(window, title);
+  }
+}
+
+int main(int argc, char **argv)
+{
+    doomgeneric_Create(argc, argv);
+
+    emscripten_set_main_loop(doomgeneric_Tick, 0, 1);
+    
+    return 0;
 }
