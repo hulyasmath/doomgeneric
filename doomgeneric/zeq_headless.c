@@ -2,6 +2,7 @@
 #include "zeq_headless.h"
 #include "zeq_doom.h"
 #include "zeq_sha256.h"
+#include "zeq_net.h"
 #include "doomstat.h"
 #include "d_main.h"
 #include "d_loop.h"
@@ -91,6 +92,7 @@ void ZEQ_HeadlessInit(void)
     realtime = environment_int("ZEQ_REALTIME", 0, 0, 1);
     singletics = true;
     ZEQ_SetRulesetImmediate(environment_int("ZEQ_RULESET", 1, 0, 2));
+    ZEQ_NetInit();
     fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL, 0) | O_NONBLOCK);
 }
 
@@ -176,7 +178,9 @@ int ZEQ_HeadlessBuildTiccmd(ticcmd_t *cmd, int maketic)
     memset(cmd, 0, sizeof(*cmd));
     while (input_cursor < input_count && inputs[input_cursor].gametic < (uint32_t)maketic)
     {
-        input_error("late-input");
+        printf("ZEQJ{\"kind\":\"input-error\",\"reason\":\"late-input\",\"expected_tic\":\"%u\",\"requested_tic\":%d}\n",
+               inputs[input_cursor].gametic, maketic);
+        input_failed = 1;
         input_cursor++;
     }
     if (input_cursor < input_count && inputs[input_cursor].gametic == (uint32_t)maketic)
@@ -226,7 +230,12 @@ int32_t ZEQ_CanonicalAction(actionf_p1 action)
     return -1;
 }
 
-static int canonical_state_hash(int completed_tics, char output[65])
+static void write32_save_extension(int32_t value)
+{
+    write32le(save_stream, value);
+}
+
+int ZEQ_HeadlessStateHash(int completed_tics, char output[65])
 {
     static const char digits[] = "0123456789abcdef";
     FILE *state = tmpfile();
@@ -291,6 +300,12 @@ static int canonical_state_hash(int completed_tics, char output[65])
     }
     for (i = 0; i < numsectors; i++)
         write32le(state, ZEQ_CanonicalPointer(sectors[i].soundtarget));
+    // Cooldowns, pending impulses, acceleration, and object IDs are gameplay
+    // state. P_WriteSaveGameEOF already writes the ordinary save extension;
+    // this repeated block is intentional in the v1 canonical byte layout.
+    save_stream = state;
+    ZEQ_WriteSaveExtension(write32_save_extension);
+    save_stream = original_stream;
     ZEQ_WriteCanonicalExtra(state, write32le);
 
     if (savegame_error || ferror(state) || fseek(state, 0, SEEK_SET) != 0)
@@ -349,7 +364,7 @@ void ZEQ_CanonicalAfterTic(void)
     uint32_t bits;
     int i;
     if (canonical_interval <= 0 || completed % canonical_interval != 0) return;
-    if (!canonical_state_hash(completed, hash))
+    if (!ZEQ_HeadlessStateHash(completed, hash))
     {
         canonical_errors++;
         return;
@@ -388,7 +403,7 @@ static void emit_checkpoint(void)
     char hash[65];
     player_t *player = &players[consoleplayer];
     mobj_t *mo = player->mo;
-    if (!canonical_state_hash(completed_tics, hash))
+    if (!ZEQ_HeadlessStateHash(completed_tics, hash))
     {
         input_error("state-serialization");
         return;
@@ -416,8 +431,14 @@ void ZEQ_HeadlessAfterTic(void)
     fflush(stdout);
 }
 
+int ZEQ_HeadlessInputFailed(void)
+{
+    return input_failed;
+}
+
 int ZEQ_HeadlessShouldStop(void)
 {
+    if (ZEQ_NetEnabled()) return input_failed || ZEQ_NetShouldStop();
     return input_failed || gametic >= max_tics;
 }
 

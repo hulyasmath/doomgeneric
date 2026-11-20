@@ -37,6 +37,9 @@
 #include "deh_main.h"
 
 #include "d_loop.h"
+#ifdef ZEQ_HEADLESS
+#include "zeq_net.h"
+#endif
 
 ticcmd_t *netcmds;
 
@@ -240,6 +243,14 @@ void D_ConnectNetGame(void)
 void D_CheckNetGame (void)
 {
     net_gamesettings_t settings;
+
+#ifdef ZEQ_HEADLESS
+    if (ZEQ_NetEnabled())
+    {
+        if (!ZEQ_NetConnect()) I_Error("Zeq network session refused");
+        netgame = true;
+    }
+#endif
 
     if (netgame)
     {
