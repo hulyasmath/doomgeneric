@@ -50,6 +50,17 @@
             <small class="boot-copy" id="boot-copy">LOADING DOOM1.WAD / WEBASSEMBLY</small>
           </div>
         </div>
+        <div class="touch-controls" id="touch-controls" aria-label="Touch game controls">
+          <div class="touch-joystick" id="touch-joystick" role="group" aria-label="Movement and turning joystick">
+            <div class="joystick-ring" aria-hidden="true"><span class="joystick-knob" id="joystick-knob"></span></div>
+            <small>MOVE / TURN</small>
+          </div>
+          <div class="touch-actions">
+            <button type="button" data-key="9" aria-label="Toggle automap">MAP</button>
+            <button type="button" data-key="162" aria-label="Use or open">USE</button>
+            <button class="touch-fire" type="button" data-key="163" aria-label="Fire weapon">FIRE</button>
+          </div>
+        </div>
       </div>
 
       <div class="carrier-console">
@@ -121,20 +132,6 @@
   <footer class="statusbar"><span><i></i> DOOMGENERIC / WASM</span><span id="runtime-detail">640 × 400 · 35 HZ SIMULATION</span><span>LOCAL-FIRST / NO TELEMETRY UPLINK</span></footer>
 </div>
 
-<div class="touch-controls" id="touch-controls" aria-label="Touch game controls">
-  <div class="touch-dpad">
-    <button type="button" data-key="173" aria-label="Move forward">↑</button>
-    <button type="button" data-key="172" aria-label="Turn left">←</button>
-    <button type="button" data-key="175" aria-label="Move backward">↓</button>
-    <button type="button" data-key="174" aria-label="Turn right">→</button>
-  </div>
-  <div class="touch-actions">
-    <button type="button" data-key="9">MAP</button>
-    <button type="button" data-key="162">USE</button>
-    <button class="touch-fire" type="button" data-key="163">FIRE</button>
-  </div>
-</div>
-
 <dialog id="manual-dialog">
   <div class="dialog-head"><span>FIELD MANUAL / 01</span><button type="button" data-close aria-label="Close manual">CLOSE</button></div>
   <h2>Rip. Tear. Integrate.</h2>
@@ -150,7 +147,7 @@
     <section><h3>SIGNED EVIDENCE</h3><p>Download a zeq-proof-v2 with canonical event hashes and Ed25519 signatures. A self-declared key is self-consistent, not automatically trusted. Without actual headless reproduction, replay stays unavailable.</p></section>
     <section><h3>LEGACY PHASE LOCK</h3><p>Legacy Arcade alone preserves the 1287/35000 carrier, ±2.4% thrust modulation, and optional +50% phase-hit damage. These bonuses never activate in Zeq Physics or Vanilla.</p></section>
   </div>
-  <p class="fine-print">On touch screens, use the directional pad and action buttons. Drag the right side of the viewport to turn. Escape opens Doom’s original menu.</p>
+  <p class="fine-print">On touch screens, drag the round joystick to move and turn; MAP, USE, and FIRE support simultaneous touches. Standard gamepads use the left stick to move, right stick to turn, A to use, X or RT to fire, Y to open the map, and the D-pad for directional movement. Escape opens Doom’s original menu.</p>
 </dialog>
 
 <dialog id="ledger-dialog">
@@ -204,7 +201,12 @@
 <script src="sdk/zeq-security.js"></script>
 <script src="sdk/zeq-capsule.js"></script>
 <script src="sdk/zeq-content.js"></script>
+<script src="sdk/zq/zeq-browser.js"></script>
+<script src="sdk/zq/zeq-host.js"></script>
+<script src="sdk/zq/zeq-panel.js"></script>
+<script src="sdk/zq/examples/doom/doom-zeq.js"></script>
 <script src="zeq.js?v=0.4.0"></script>
+<script src="zeq-machine.js"></script>
 {{{ SCRIPT }}}
 </body>
 </html>
