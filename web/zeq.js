@@ -1119,6 +1119,34 @@ $("phase5-self-test").addEventListener("click", async () => {
   finally { $("phase5-self-test").disabled = false; }
 });
 $("exact-self-test").addEventListener("click", () => runExactConformance(true));
+async function copySdkSnippet(button) {
+  const source = $(button.dataset.copyTarget);
+  if (!source) return;
+  const text = source.textContent;
+  try {
+    if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(text);
+    else {
+      const field = document.createElement("textarea");
+      field.value = text;
+      field.setAttribute("readonly", "");
+      field.style.position = "fixed";
+      field.style.opacity = "0";
+      document.body.appendChild(field);
+      field.select();
+      const copied = document.execCommand("copy");
+      field.remove();
+      if (!copied) throw new Error("clipboard unavailable");
+      button.focus();
+    }
+    $("sdk-copy-status").textContent = `${button.dataset.copyName.toUpperCase()} SNIPPET COPIED.`;
+  } catch (_) {
+    $("sdk-copy-status").textContent = "CLIPBOARD BLOCKED. SELECT THE CODE AND COPY IT MANUALLY.";
+  }
+}
+document.querySelectorAll("[data-copy-target]").forEach((button) => {
+  button.addEventListener("click", () => copySdkSnippet(button));
+});
+
 $("download-ledger").addEventListener("click", async () => {
   await eventChain;
   const active = lastExactSnapshot?.ruleset ?? 1;
