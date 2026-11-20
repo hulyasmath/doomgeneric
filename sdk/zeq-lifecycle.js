@@ -79,7 +79,7 @@
         if (desc.id !== app.descriptor.id || !/^\d+$/.test(desc.version) || Number(desc.version) <= Number(app.descriptor.version)) throw new Error("update must increase application version");
         if (typeof transitionOptions.verifyContent !== "function" || await transitionOptions.verifyContent(desc.content_sha256) !== true) throw new Error("updated content verification failed");
         const requested = new Set(desc.requested_capabilities); grants = capabilities(transitionOptions.grant || []);
-        if (granted.some(capability => !requested.has(capability))) throw new Error("update grant exceeds request");
+        if (grants.some(capability => !requested.has(capability))) throw new Error("update grant exceeds request");
         app.enabled = false;
       }
       if (action === "transfer") {
