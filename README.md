@@ -15,6 +15,8 @@ real engine paths (`P_FireWeapon`, `P_DamageMobj`, `P_KillMobj`, `P_MovePlayer`,
   conformance contract for existing games and simulations.
 - **[Doom protocol specification](docs/zeq-doomgeneric-protocol-v1.md)** — exact
   wire formats and Doom-specific integration rules.
+- **[Doom contract observation](docs/zeq-doom-integration.md)** — the reviewed
+  PR #3 proof of concept, its reproduced tests, and its authority limits.
 
 `hulyasmath/doomgeneric` owns the complete game and reference integration.
 `hulyasmath/zeq-doomgeneric` is the portable SDK distribution: portable modules,
@@ -22,11 +24,14 @@ schemas, vectors, tests, and integration guides, without a second maintained Doo
 game tree. The repositories align by SDK release identity, not by mirroring every
 engine file into both projects.
 
-Phases 0–4, the Phase 5 signed-content/sealed-parcel SDK milestone, and the
-single signed-PWAD reference-host loader are implemented and tested as described
-below. Multi-file/PK3 loading, remaining Phase 5 hardening, and Phases 6–13 are
-not implemented. The roadmap distinguishes partial, pending, and proposed work so
-future framework capabilities are not presented as shipping features.
+Phases 0–4, the Phase 5 signed-content/sealed-parcel SDK milestone, the single
+signed-PWAD reference-host loader, and the Phase 6 native two-client reference
+profile are implemented and tested as described below. Multi-file/PK3 loading,
+remaining Phase 5 hardening, browser networking, and broader network hardening
+remain open. Phases 7–10 are pending; Phase 11 has only the narrow contract-
+observation proof of concept described below, and the general Phase 11–13 programs
+remain unfinished. The roadmap distinguishes partial, pending, and proposed work
+so future framework capabilities are not presented as shipping features.
 
 ## What the Zeq layer adds
 
@@ -93,17 +98,42 @@ future framework capabilities are not presented as shipping features.
   `zeq-content-load-evidence-v1` records trust, ruleset, content identity, and the
   result in the signed local evidence chain. Multi-file mods and PK3 remain
   pending; parcels never execute or automatically load plaintext.
+- **Deterministic two-client networking and rollback (Phase 6 reference profile)** —
+  two separate native headless Doom processes exchange complete authoritative
+  `ticcmd_t` commands over real TCP. A versioned session descriptor binds engine,
+  WAD/content, ruleset, map, skill, settings, tick rate, initial RNG, and session
+  identity. Peers predict at most 8 tics inside a bounded 32-tic command/snapshot
+  window, restore actual Doom save-state snapshots on misprediction, resimulate,
+  and compare confirmed canonical SHA-256 checkpoints. Delay, jitter, loss, and
+  duplicates are tested through a real TCP proxy; conflicting commands, malformed
+  frames, mismatched sessions/descriptors, and state-hash divergence fail closed.
+  This is a fresh-E1M1, two-player native conformance profile only: browser
+  multiplayer, authenticated peer identity, TLS, Internet matchmaking, mid-game
+  join, and more than two players are not supplied.
+- **Portable contract observation (reviewed PR #3 proof of concept)** — an
+  engine-neutral host layer maps real Doom events into weapon, player, ruleset,
+  level, and save-load contract decisions. The browser's optional ZEQ CONTRACTS
+  panel connects to an owner-configured external machine with a scoped key;
+  the native adapter can audit a completed headless run. Three ruleset identities
+  remain distinct. This is asynchronous observation, not gameplay enforcement:
+  refusals do not undo C events, health is damage-derived only, and external-
+  machine-backed runs remain unverified in the delivery environment.
 - **Browser shell** — scalable viewport, live same-tic conformance panel,
-  ruleset/cooldown/impulse diagnostics, pointer-lock mouse aim, resilient keyboard
-  and touch controls, and original MIDI music via bundled freepats instruments.
-  Holds are reference-counted across aliases and released on key/pointer release,
-  cancellation, lost capture, blur, page exit, or visibility loss.
+  ruleset/cooldown/impulse diagnostics, pointer-lock mouse aim, resilient keyboard,
+  standard-gamepad and analog touch controls, and original MIDI music via bundled
+  freepats instruments. Touch controls stay inside the fullscreen layer, with an
+  expanded fallback for browsers without element fullscreen. Holds and analog
+  sources are released on key/pointer release, cancellation, lost capture,
+  controller disconnect, blur, page exit, orientation change, or visibility loss.
 
 ## Controls
 
 WASD/arrows move and turn · click the viewport for mouse aim · LMB/Ctrl fire ·
 Space use · 1–7 weapons · Tab automap · Shift run · Alt strafe · Esc Doom menu.
-On touch screens: D-pad + MAP/USE/FIRE; drag the viewport to turn.
+Standard gamepads: left stick moves/strafes, right stick turns, A uses, X or RT
+fires, Y opens the map, and the D-pad moves/turns. On iPhones, iPads, and other
+touch screens, drag the round joystick to move/turn and use MAP/USE/FIRE with
+independent simultaneous touches. FULL expands the real viewport and controls.
 
 ## Building the browser version
 
@@ -154,6 +184,10 @@ reports the latest live same-tic C/WASM-versus-JavaScript comparison.
 sh build-headless.sh
 node sdk/tests/test_replay.js
 node sdk/tests/test_mcp.js
+node sdk/tests/test_net.js
+node sdk/zq/tests/test_doom.js
+node tests/test_doom_contracts.js
+node tests/test_net_engine.js
 ```
 
 The replay tests execute actual movement/fire commands, compare two independent
@@ -168,16 +202,36 @@ and firing with the real renderer enabled. `node tests/test_browser_content.js`
 signs a conformance-only PWAD, exercises the visible load form, reads its marker
 lump back through Doom, and requires wrong-trust, modified-byte,
 incompatible-ruleset, malformed-WAD, independent C digest-mismatch, and duplicate
-loads to fail closed. Build scripts regenerate all large arithmetic vectors from
-the committed Python generators; generated outputs and WAD/build artifacts are
-not source-controlled.
+loads to fail closed. `node tests/test_browser_controls.js` additionally drives
+keyboard, standard-gamepad, analog joystick, simultaneous touch/fire, disconnect,
+pointer-cancellation, iPhone/iPad layout, native fullscreen, and expanded-fallback
+checks. The Phase 6 engine gate launches two actual native engines, verifies exact
+confirmed checkpoint chains for 140 direct tics and 180 delayed/jittered/lossy/
+duplicated tics, requires genuine rollback and resimulation, refuses identity and
+protocol mismatches, and detects deliberate hash corruption in either direction.
+`node tests/test_browser_machine.js` plays the real WASM build through the
+contract panel and HTTP client against a labeled local conformance evaluator,
+audits the resulting records, checks key non-persistence, and verifies mobile
+control layering. It is not an external-machine test.
+Build scripts regenerate all large arithmetic vectors from the committed Python
+generators; generated outputs and WAD/build artifacts are not source-controlled.
 
 ## Limitations (by design)
 
-- Single-player only; no netcode.
+- The browser game is single-player. Phase 6 networking exists only in the native
+  headless two-process reference profile, not in the live browser shell.
+- Network sessions start fresh on shareware E1M1 with exactly two players.
+  `BT_SPECIAL` commands, mid-game join, saved-game resume, PK3/multi-file network
+  content, and more than two players are unsupported. The TCP handshake checks a
+  shared session ID and descriptor digest but does not authenticate a person or
+  protect transport; do not expose it as a secure public multiplayer service.
 - Phase 5 loads exactly one verified PWAD per accepted manifest in the reference
   host. Multi-file mods and PK3 are unsupported. Parcels never execute content.
 - The ledger is tamper-evident, not tamper-proof; it cannot prove a clean run.
+- Contract observation covers five narrow rules and is not authoritative
+  enforcement, anti-cheat, comprehensive Doom semantics, or proof of honest input.
+  External-machine compatibility is exposed but not locally reproduced without
+  an owner-provided machine and scoped key.
 - Saves and settings live in this browser only.
 - Shareware episode (Knee-Deep in the Dead) from the unmodified id Software WAD.
 
