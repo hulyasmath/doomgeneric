@@ -1,7 +1,7 @@
 # Zeq Program Roadmap v1
 
 Status: canonical planning document, 20 November 2026
-Reference source snapshot: `1a5e172fb2edb76c2e03234eb93aaaf187192f9b`
+Reference source snapshot: the repository commit containing this document
 Scope: Phases 0–13, repository ownership, release gates, and adoption boundaries
 
 ## 1. Purpose and non-negotiable rules
@@ -163,7 +163,7 @@ MCP over stdio provides run control, state reading, input injection, proof expor
 
 Replay status remains `not-run`, `match`, `mismatch`, or `unavailable`. Browser telemetry does not become a verified replay without actual reproduction.
 
-Not claimed: deterministic multiplayer, rollback, a completed 20 Hz bot scheduler, or universal engine-independent replay merely because Doom replay works.
+Not claimed by Phase 4 alone: deterministic multiplayer, rollback, a completed 20 Hz bot scheduler, or universal engine-independent replay merely because Doom replay works. The separately gated Phase 6 native reference profile is described below.
 
 ## 5. Current milestone and remaining original roadmap: Phases 5–8
 
@@ -203,18 +203,37 @@ Not claimed: multi-file or PK3 loading, arbitrary native/code mods, automatic co
 
 ### Phase 6 — Deterministic networking and rollback
 
-**Status: pending.**
+**Status: implemented and tested for the native two-client reference profile; browser networking and broader production/security hardening remain pending.**
 
-Required work:
+Implemented reference-host deliverables:
 
-- versioned session descriptor with engine, WAD/content, ruleset, settings, map, seed, and protocol identities;
-- deterministic command transport and explicit delay/jitter/loss handling;
-- at least two real engine clients, not simulated peers in one script;
-- matching canonical hashes over genuine network runs;
-- bounded snapshots, prediction, rollback, resimulation, and desynchronization diagnostics;
-- refusal or explicit degradation when a peer’s identity/settings do not match.
+- `zeq-net-session-v1` / `zeq-doom-net-v1` descriptor binding engine API/build, WAD/content, ruleset, episode/map/skill, settings, tick rate, initial RNG, and session identity;
+- two separate native Doom processes with real player assignments and complete per-tic `ticcmd_t` exchange over real TCP sockets;
+- a fixed 60-byte hello and bounded binary command/hash/completion frames, with malformed, oversized, wrong-protocol, wrong-player, and conflicting-duplicate refusal;
+- deterministic impairment testing through an actual TCP proxy, including delay, jitter, command loss, and duplicates;
+- 8-tic prediction, a 32-tic command/snapshot window, 262144-byte snapshot buffers, complete-command retransmission, and peer-checkpoint acknowledgement bounds;
+- real pre-tic Doom snapshots, rollback, exact resimulation, restored Zeq extension/gameplay state, symbolic pointers, mobj heights, and mixed thinker order;
+- confirmed canonical SHA-256 checkpoint chains only after both authoritative commands exist; predicted/rolled-back engine events are drained instead of entering confirmed evidence;
+- local/remote confirmed-hash comparison and `net-desync` diagnostics in both sender directions;
+- portable descriptor/digest and deterministic impairment-scheduling helpers in `sdk/zeq-net.js`, without embedding Doom or pretending to provide a transport.
 
-Acceptance gate: reproducible two-client tests with recorded commands and matching authoritative state. A hash chain, `split64`, or signed event stream alone is not netcode. No competitive-legitimacy claim follows.
+Acceptance evidence:
+
+- the direct case confirms 140 tics on both processes with identical linked hashes and explicit pre-tic boundary verification;
+- the impaired case confirms 180 tics with identical hashes and observed drops, duplicates, delays, mispredictions, rollbacks, and resimulation on real engine processes;
+- descriptor and session mismatches are refused before checkpoints; wrong protocol/player, conflicting commands, bad frame magic, and oversized frames are refused;
+- deliberate transmitted-hash corruption at tic 20 is detected in both directions;
+- native replay, MCP, exact arithmetic/physics/content/security, clean WASM, browser controls, signed-PWAD, and browser/native canonical replay regressions pass.
+
+Current scope and remaining hardening:
+
+1. Native headless fresh-E1M1 only; the browser/WASM shell remains single-player.
+2. Exactly two players, fixed tested shareware content/settings, no mid-game join or saved-game session resume, and no `BT_SPECIAL` commands.
+3. The listener binds loopback. The handshake compares session/descriptor identity but does not authenticate a person or cryptographic peer key and supplies no TLS, matchmaking, relay, or NAT traversal. Do not present this profile as a secure public multiplayer service.
+4. Longer soak tests, wider maps/rulesets/content, resource-exhaustion/fuzz testing, and performance budgets remain Phase 8 hardening.
+5. Any future browser, UDP, signed-peer, or multi-file-content transport requires a new explicitly versioned and tested profile.
+
+The native acceptance gate is therefore met without implying production Internet multiplayer or competitive legitimacy. A hash chain, `split64`, or signed event stream alone would not constitute netcode.
 
 ### Phase 7 — Deterministic rasterization and visual integrity
 
@@ -284,7 +303,7 @@ Acceptance gate: reference problems include known analytical solutions and failu
 
 ### Phase 11 — Contracts, scenarios, and reproducible experiments
 
-**Status: proposed extension; not implemented as the portable SDK layer.**
+**Status: partial proof of concept. The reviewed PR #3 host/event-contract observer is implemented and locally tested; the complete scenario, experiment, resource-budget, cancellation, and reproduction layer remains pending.**
 
 Deliverables:
 
@@ -325,7 +344,7 @@ Acceptance gate: at least two materially different hosts pass the same portable 
 
 ## 7. Dependency order and release gates
 
-The implementation order remains: finish Phase 5, then Phase 6, Phase 7, Phase 8, followed by Phases 9–13. Documentation may be prepared ahead of code, but future APIs remain labeled pending/proposed.
+The milestone order remains Phase 5, Phase 6, Phase 7, Phase 8, followed by Phases 9–13. The narrow Phase 6 native reference gate is now met while the explicitly listed Phase 5 multi-file/PK3 and Phase 6 production-hardening work remains open. The explicitly requested PR #3 integration adds only a narrow Phase 11 observation proof of concept; it does not open or complete the general Phase 11 program. Phase 7 does not begin until this reference profile's source, documentation, regression, and repository-delivery gates are complete. Documentation may be prepared ahead of code, but future APIs remain labeled pending/proposed.
 
 Every phase requires:
 
@@ -373,6 +392,6 @@ Each added module must justify its state, schema, dependencies, resource cost, a
 
 ## 10. Current honest position
 
-The project has a working real-Doom reference foundation through Phase 4, a tested Phase 5 signed-content/sealed-parcel SDK milestone, and a tested single-PWAD reference-host loader. Multi-file/PK3 engine content loading, deterministic networking/rollback, strict rendering integrity, Phase 8 closeout, and Phases 9–13 remain unfinished. Repository restructuring and clean WASM toolchain verification are release work, not completed game features.
+The project has a working real-Doom reference foundation through Phase 4, a tested Phase 5 signed-content/sealed-parcel SDK milestone, a tested single-PWAD reference-host loader, a tested Phase 6 native two-process networking/rollback profile with matching canonical hashes under direct and impaired TCP transport, and a locally tested PR #3 contract-observation proof of concept. Multi-file/PK3 engine content loading, browser networking, production network security/hardening, strict rendering integrity, Phase 8 closeout, external-machine contract validation, and the full Phases 9–13 programs remain unfinished. Repository restructuring and clean WASM toolchain verification are release work, not completed game features.
 
 This roadmap is the controlling scope document for subsequent implementation. More detailed protocol documents define exact bytes and APIs; if a status statement conflicts with tested code, the status must be corrected rather than the claim inflated.
