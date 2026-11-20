@@ -220,6 +220,7 @@ Implemented reference-host deliverables:
 Acceptance evidence:
 
 - the direct case confirms 140 tics on both processes with identical linked hashes and explicit pre-tic boundary verification;
+- the LAN case confirms 140 tics over real non-loopback TCP on one test host, using an explicitly selected local IPv4 interface; malformed and wildcard bind addresses are refused; a physical two-machine private-Wi-Fi run has not been performed;
 - the impaired case confirms 180 tics with identical hashes and observed drops, duplicates, delays, mispredictions, rollbacks, and resimulation on real engine processes;
 - descriptor and session mismatches are refused before checkpoints; wrong protocol/player, conflicting commands, bad frame magic, and oversized frames are refused;
 - deliberate transmitted-hash corruption at tic 20 is detected in both directions;
@@ -229,7 +230,7 @@ Current scope and remaining hardening:
 
 1. Native headless fresh-E1M1 only; the browser/WASM shell remains single-player.
 2. Exactly two players, fixed tested shareware content/settings, no mid-game join or saved-game session resume, and no `BT_SPECIAL` commands.
-3. The listener binds loopback. The handshake compares session/descriptor identity but does not authenticate a person or cryptographic peer key and supplies no TLS, matchmaking, relay, or NAT traversal. Do not present this profile as a secure public multiplayer service.
+3. The listener binds `127.0.0.1` by default. `ZEQ_NET_BIND=<numeric local IPv4>` explicitly selects another local interface for private-LAN transport; `0.0.0.0` and malformed addresses are refused. The one-host non-loopback test is not a physical two-machine Wi-Fi validation. The handshake compares session/descriptor identity but does not authenticate a person or cryptographic peer key and supplies no encryption, TLS, matchmaking, relay, or NAT traversal. Use only a trusted private LAN; do not present this profile as a secure public multiplayer service.
 4. Longer soak tests, wider maps/rulesets/content, resource-exhaustion/fuzz testing, and performance budgets remain Phase 8 hardening.
 5. Any future browser, UDP, signed-peer, or multi-file-content transport requires a new explicitly versioned and tested profile.
 
@@ -237,20 +238,26 @@ The native acceptance gate is therefore met without implying production Internet
 
 ### Phase 7 — Deterministic rasterization and visual integrity
 
-**Status: pending.**
+**Status: partial. The portable `zeq-pixel-v1` conformance slice is implemented and tested; Doom renderer integration, texture-system validation, and the complete visual-integrity profile remain pending.**
 
-Required work:
+Implemented and tested deliverables:
 
-- optional strict `zeq-pixel-v1` path isolated from Vanilla and physics behavior;
-- per-pixel `(depth_q32, owner_id, layer_rank, claimed_mask)` occupancy/depth ownership;
-- strict opaque write gate and deterministic depth/owner/layer tie-breaking;
-- checked rational subpixel projection and column/span stepping;
-- seam, overflow, degenerate geometry, viewport, and resolution tests;
-- structural PATCH/PNAMES/TEXTURE1/TEXTURE2/flat validation before use;
-- bounded palette, colormap, fuzz, and translucency behavior;
-- native/WASM frame and occupancy comparisons using fixed inputs.
+- optional engine-neutral C and JavaScript modules isolated from Vanilla, physics, replay, and canonical gameplay state;
+- caller-owned per-pixel `(depth_q32, owner_id, layer_rank, claimed_mask)` occupancy plus RGBA8 color;
+- strict opaque write gating, deterministic depth/layer/owner arbitration, claim-mask merging, and same-key color-conflict refusal;
+- checked bounded-rational 1/256-subpixel projection and half-open clipped column/span stepping;
+- canonical little-endian frame (`ZEQFRM1`) and occupancy (`ZEQOCC1`) byte streams with independent SHA-256 commitments;
+- one fixed 9×7 scene producing identical bytes in native C99/i128, JavaScript BigInt, and WASM, with stable repeated runs and negative coverage for opacity, bounds, seams, reversed/degenerate ranges, behind-camera projection, overflow, and short buffers.
 
-Visual hashes are separate from gameplay hashes and must state renderer, resolution, palette, content, and settings identity. Visual integrity is not proof of competitive legitimacy.
+Remaining gates:
+
+1. Integrate the strict path into an actual host renderer without changing existing gameplay rulesets.
+2. Add structural PATCH/PNAMES/TEXTURE1/TEXTURE2/flat validation before use.
+3. Define and bound palette, colormap, fuzz, and translucency behavior; the current slice accepts opaque RGBA8 only.
+4. Add resolution sweeps, larger geometric/adversarial fixtures, performance/resource budgets, and full native/WASM host-frame comparisons.
+5. Version any visual evidence with renderer, resolution, palette, content, and settings identity.
+
+Visual hashes are separate from gameplay hashes. This milestone does not replace Doom's renderer or prove visual integrity for ordinary Doom frames, and visual integrity is not proof of competitive legitimacy.
 
 ### Phase 8 — Engine, bot, build, and repository closeout
 
@@ -344,7 +351,7 @@ Acceptance gate: at least two materially different hosts pass the same portable 
 
 ## 7. Dependency order and release gates
 
-The milestone order remains Phase 5, Phase 6, Phase 7, Phase 8, followed by Phases 9–13. The narrow Phase 6 native reference gate is now met while the explicitly listed Phase 5 multi-file/PK3 and Phase 6 production-hardening work remains open. The explicitly requested PR #3 integration adds only a narrow Phase 11 observation proof of concept; it does not open or complete the general Phase 11 program. Phase 7 does not begin until this reference profile's source, documentation, regression, and repository-delivery gates are complete. Documentation may be prepared ahead of code, but future APIs remain labeled pending/proposed.
+The milestone order remains Phase 5, Phase 6, Phase 7, Phase 8, followed by Phases 9–13. The narrow Phase 6 native reference gate and its one-host non-loopback LAN case are met while the explicitly listed Phase 5 multi-file/PK3 and Phase 6 production-hardening work remains open. The explicitly requested PR #3 integration adds only a narrow Phase 11 observation proof of concept; it does not open or complete the general Phase 11 program. The portable Phase 7 pixel-conformance slice is implemented, but renderer/texture integration and the remaining visual-integrity gates are still pending. Documentation may be prepared ahead of code, but future APIs remain labeled pending/proposed.
 
 Every phase requires:
 
