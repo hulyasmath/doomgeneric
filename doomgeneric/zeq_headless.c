@@ -3,6 +3,7 @@
 #include "zeq_doom.h"
 #include "zeq_sha256.h"
 #include "zeq_net.h"
+#include "zeq_visual.h"
 #include "doomstat.h"
 #include "d_main.h"
 #include "d_loop.h"
@@ -92,6 +93,7 @@ void ZEQ_HeadlessInit(void)
     realtime = environment_int("ZEQ_REALTIME", 0, 0, 1);
     singletics = true;
     ZEQ_SetRulesetImmediate(environment_int("ZEQ_RULESET", 1, 0, 2));
+    ZEQ_VisualSetInterval(environment_int("ZEQ_VISUAL_INTERVAL", 0, 0, 2000000));
     ZEQ_NetInit();
     fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL, 0) | O_NONBLOCK);
 }
@@ -417,6 +419,31 @@ static void emit_checkpoint(void)
     fflush(stdout);
 }
 
+static void emit_visual(void)
+{
+    int32_t size;
+    while ((size = ZEQ_VisualRead()) != 0)
+    {
+        uint8_t *record = ZEQ_VisualData();
+        uint32_t tic;
+        uint32_t frame_bytes;
+        if (size != ZEQ_VISUAL_RECORD_BYTES)
+        {
+            input_error("visual-record");
+            return;
+        }
+        tic = (uint32_t)record[0] | ((uint32_t)record[1] << 8)
+            | ((uint32_t)record[2] << 16) | ((uint32_t)record[3] << 24);
+        frame_bytes = (uint32_t)record[140] | ((uint32_t)record[141] << 8)
+                    | ((uint32_t)record[142] << 16) | ((uint32_t)record[143] << 24);
+        printf("ZEQJ{\"kind\":\"visual\",\"format\":\"%s\",\"gametic\":\"%u\",\"frame_sha256\":\"%.64s\",\"occupancy_sha256\":\"%.64s\",\"width\":%u,\"height\":%u,\"gamma\":%u,\"detail\":%u,\"frame_bytes\":%u,\"identity\":%s}\n",
+               ZEQ_VISUAL_FORMAT, tic, (char *)record + 4, (char *)record + 68,
+               (unsigned int)record[132] | ((unsigned int)record[133] << 8),
+               (unsigned int)record[134] | ((unsigned int)record[135] << 8),
+               record[136], record[137], frame_bytes, ZEQ_VisualIdentity());
+    }
+}
+
 void ZEQ_HeadlessAfterTic(void)
 {
     zeq_event_t *event;
@@ -428,6 +455,13 @@ void ZEQ_HeadlessAfterTic(void)
     }
     if (completed_tics % checkpoint_interval == 0 || completed_tics == max_tics)
         emit_checkpoint();
+    emit_visual();
+    fflush(stdout);
+}
+
+void ZEQ_HeadlessFlushVisual(void)
+{
+    emit_visual();
     fflush(stdout);
 }
 
