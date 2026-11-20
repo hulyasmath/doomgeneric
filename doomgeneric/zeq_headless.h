@@ -8,7 +8,9 @@
 void ZEQ_HeadlessInit(void);
 void ZEQ_HeadlessPump(void);
 int ZEQ_HeadlessBuildTiccmd(ticcmd_t *cmd, int maketic);
+int ZEQ_HeadlessInputFailed(void);
 void ZEQ_HeadlessAfterTic(void);
+int ZEQ_HeadlessStateHash(int completed_tics, char output[65]);
 int ZEQ_HeadlessShouldStop(void);
 int ZEQ_HeadlessRealtime(void);
 int32_t ZEQ_CanonicalPointer(void *pointer);
