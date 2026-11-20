@@ -146,7 +146,7 @@ async function runHeadless(options = {}) {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "zeq-headless-"));
   const launch = engineCommand(identity.engine);
   const args = [...launch.prefix, "-iwad", identity.wad, "-warp", "1", "1", "-skill", String(settings.skill + 1), "-nosound", "-nomusic", "-config", "default.cfg"];
-  const child = spawn(launch.command, args, { cwd, env: { ...process.env, ZEQ_RUN_ID: runId, ZEQ_MAX_TIC: String(settings.maxTic), ZEQ_CHECKPOINT_INTERVAL: String(settings.checkpointInterval), ZEQ_RULESET: String(settings.ruleset), ZEQ_REALTIME: options.realtime ? "1" : "0" }, stdio: ["pipe", "pipe", "pipe"] });
+  const child = spawn(launch.command, args, { cwd, env: { ...process.env, ZEQ_RUN_ID: runId, ZEQ_MAX_TIC: String(settings.maxTic), ZEQ_CHECKPOINT_INTERVAL: String(settings.checkpointInterval), ZEQ_RULESET: String(settings.ruleset), ZEQ_REALTIME: options.realtime ? "1" : "0", ZEQ_VISUAL_INTERVAL: options.visual ? String(settings.checkpointInterval) : "0", ZEQ_VISUAL_OUTPUT: options.visualOutput || "" }, stdio: ["pipe", "pipe", "pipe"] });
   let stdout = "";
   let stderr = "";
   let stopped = false;
@@ -183,7 +183,7 @@ async function runHeadless(options = {}) {
           count: bytes.length / INPUT_BYTES, encoding: "base64", data: bytes.toString("base64"), sha256: sha256(bytes)
         } : createInputArtifact(commands, runId);
         descriptor.run.input_sha256 = inputArtifact.sha256;
-        resolve({ run: descriptor.run, settings, inputArtifact, records, checkpoints: records.filter((r) => r.kind === "checkpoint"), events: records.filter((r) => r.kind === "engine-event"), stateHashes: hashes });
+        resolve({ run: descriptor.run, settings, inputArtifact, records, checkpoints: records.filter((r) => r.kind === "checkpoint"), events: records.filter((r) => r.kind === "engine-event"), visual: records.filter((r) => r.kind === "visual"), stateHashes: hashes });
       } catch (error) { reject(error); }
       finally { fs.rmSync(cwd, { recursive: true, force: true }); }
     });

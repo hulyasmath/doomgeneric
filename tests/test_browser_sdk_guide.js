@@ -31,7 +31,7 @@ const SHOTS = process.env.ZEQ_SCREENSHOT_DIR || "/mnt/agents/work/sdk-guide-evid
   await page.locator("#sdk-dialog").waitFor({ state: "visible" });
   assert.match(await page.locator("#sdk-dialog h2").textContent(), /Keep your engine/);
   const links = await page.locator("#sdk-dialog .sdk-links a").evaluateAll((nodes) => nodes.map((a) => ({ href: a.href, target: a.target, rel: a.rel })));
-  assert.equal(links.length, 5);
+  assert.equal(links.length, 7);
   for (const link of links) {
     const parsed = new globalThis.URL(link.href);
     assert.equal(parsed.protocol, "https:");
@@ -43,7 +43,9 @@ const SHOTS = process.env.ZEQ_SCREENSHOT_DIR || "/mnt/agents/work/sdk-guide-evid
   const snippets = await page.locator("#sdk-dialog details").evaluateAll((nodes) => nodes.map((node) => ({ open: node.open, height: node.getBoundingClientRect().height })));
   assert.equal(snippets[0].open, true);
   assert.ok(snippets[0].height > 44);
+  assert.equal(snippets.length, 3);
   assert.equal(snippets[1].open, false);
+  assert.equal(snippets[2].open, false);
   await page.locator("#sdk-dialog details").nth(1).locator("summary").click();
   assert.equal(await page.locator("#sdk-dialog details").nth(1).getAttribute("open"), "");
   await page.locator('[data-copy-target="sdk-c-snippet"]').click();
@@ -52,6 +54,10 @@ const SHOTS = process.env.ZEQ_SCREENSHOT_DIR || "/mnt/agents/work/sdk-guide-evid
   await page.locator('[data-copy-target="sdk-js-snippet"]').click();
   await page.waitForFunction(() => document.getElementById("sdk-copy-status").textContent.includes("JAVASCRIPT EXACT-TIME SNIPPET COPIED"));
   assert.match(await page.evaluate(() => navigator.clipboard.readText()), /ZeqSDK\.time\.fromTic\(hostTick, hostTickRate\)/);
+  await page.locator("#sdk-dialog details").nth(2).locator("summary").click();
+  await page.locator('[data-copy-target="sdk-quantity-snippet"]').click();
+  await page.waitForFunction(() => document.getElementById("sdk-copy-status").textContent.includes("EXACT-UNIT SNIPPET COPIED"));
+  assert.match(await page.evaluate(() => navigator.clipboard.readText()), /Q\.convert\(threeZeqonds, "ms"\)/);
   await page.screenshot({ path: `${SHOTS}/sdk-guide-desktop.png` });
   await page.keyboard.press("Escape");
   await page.waitForFunction(() => !document.getElementById("sdk-dialog").open);
@@ -92,8 +98,8 @@ const SHOTS = process.env.ZEQ_SCREENSHOT_DIR || "/mnt/agents/work/sdk-guide-evid
 
   assert.deepEqual(errors, []);
   assert.deepEqual(badResponses, []);
-  console.log(JSON.stringify({ ok: true, documentationLinks: links.length, copyButtons: 2,
-    disclosureControls: 2, closePaths: ["Escape", "close button"], mobileLayout: layout,
+  console.log(JSON.stringify({ ok: true, documentationLinks: links.length, copyButtons: 3,
+    disclosureControls: 3, closePaths: ["Escape", "close button"], mobileLayout: layout,
     consoleErrors: 0, badResponses: 0 }, null, 2));
   await browser.close();
 })().catch((error) => { console.error(error); process.exit(1); });
