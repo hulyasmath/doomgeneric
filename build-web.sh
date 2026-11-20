@@ -64,7 +64,7 @@ copy_verified()
   mv -f "$temporary" "$destination"
 }
 
-mkdir -p "$ROOT/dist" "$ROOT/dist/sdk"
+mkdir -p "$ROOT/dist" "$ROOT/dist/sdk" "$ROOT/dist/sdk/zq/examples/doom"
 SOURCE_COMMIT=$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || printf '%040d' 0)
 printf '/* Generated build identity. */\nwindow.ZeqBuildInfo = Object.freeze({ sourceCommit: "%s" });\n' "$SOURCE_COMMIT" > "$ROOT/dist/sdk/zeq-build-info.js.tmp"
 mv -f "$ROOT/dist/sdk/zeq-build-info.js.tmp" "$ROOT/dist/sdk/zeq-build-info.js"
@@ -75,6 +75,11 @@ copy_verified doomgeneric.data "$ROOT/dist/doomgeneric.data"
 copy_verified "$ROOT/web/zeq.css" "$ROOT/dist/zeq.css"
 copy_verified "$ROOT/web/zeq.js" "$ROOT/dist/zeq.js"
 copy_verified "$ROOT/web/zeq-capsule-worker.js" "$ROOT/dist/zeq-capsule-worker.js"
+copy_verified "$ROOT/web/zeq-machine.js" "$ROOT/dist/zeq-machine.js"
+copy_verified "$ROOT/sdk/zq/zeq-browser.js" "$ROOT/dist/sdk/zq/zeq-browser.js"
+copy_verified "$ROOT/sdk/zq/zeq-host.js" "$ROOT/dist/sdk/zq/zeq-host.js"
+copy_verified "$ROOT/sdk/zq/zeq-panel.js" "$ROOT/dist/sdk/zq/zeq-panel.js"
+copy_verified "$ROOT/sdk/zq/examples/doom/doom-zeq.js" "$ROOT/dist/sdk/zq/examples/doom/doom-zeq.js"
 copy_verified "$ROOT/sdk/zeq-time-table.js" "$ROOT/dist/sdk/zeq-time-table.js"
 copy_verified "$ROOT/sdk/zeq-physics-table.js" "$ROOT/dist/sdk/zeq-physics-table.js"
 copy_verified "$ROOT/sdk/zeq-game-sdk.js" "$ROOT/dist/sdk/zeq-game-sdk.js"
