@@ -45,6 +45,8 @@ The following claims are prohibited:
 | `ZEQ-PARCEL-v2` | 2 | Expiring, replay-protected Doom parcel profile |
 | `zeq-net-session-v1` | 1 | Canonical deterministic network session descriptor |
 | `zeq-doom-net-v1` | 1 | Native two-process binary command/hash/rollback protocol |
+| `zeq-pixel-v1` | 1 | Optional deterministic opaque raster primitives and occupancy |
+| `zeq-pixel-conformance-v1` | 1 | Fixed-scene native/JavaScript/WASM pixel comparison record |
 | `zeq-mcp-v1` | 1 | Local headless automation interface |
 
 Existing records retain their original meanings:
@@ -522,7 +524,7 @@ session_id
 
 ### 15.2 Binary transport
 
-The listener binds an IPv4 loopback address. The connector accepts an IPv4 `host:port` endpoint. The initial hello is exactly 60 bytes:
+The listener binds `127.0.0.1` by default. `ZEQ_NET_BIND=<numeric local IPv4>` explicitly selects a local listener interface and is valid only with `ZEQ_NET_LISTEN`; malformed addresses and `0.0.0.0` are refused. The connector accepts an IPv4 `host:port` endpoint through `ZEQ_NET_CONNECT`. The initial hello is exactly 60 bytes:
 
 ```text
 0..7    ZEQNET6\0
@@ -543,7 +545,7 @@ Subsequent frames have a five-byte header: ASCII `ZN`, one-byte type, and little
 
 The command payload is signed forward/side bytes, little-endian signed 16-bit angle turn, chat/buttons/consistancy/buttons2 bytes, little-endian signed 32-bit inventory, lookfly, and arti. Every command is authoritative for its sender only. Duplicate identical commands are idempotent; conflicting duplicates, invalid player/tic ranges, `BT_SPECIAL`, bad magic, wrong lengths, and oversized frames terminate with a structured network error. No frame carries executable content, a pathname, a secret, or arbitrary process memory.
 
-This profile does not implement TLS, signed peer authentication, matchmaking, NAT traversal, relays, UDP, or browser raw sockets. TCP head-of-line blocking remains. The reference listener is loopback-only; a test proxy can provide genuine transport impairment but does not turn the profile into a secure Internet service. Any such additions require separately versioned and tested protocols.
+This profile does not implement encryption, TLS, signed peer authentication, matchmaking, NAT traversal, relays, UDP, or browser raw sockets. TCP head-of-line blocking remains. Explicit non-loopback binding permits direct private-LAN TCP between machines that can route to the selected address; it does not make a hostile LAN safe. A test proxy can provide genuine transport impairment but does not turn the profile into a secure Internet service. Any such additions require separately versioned and tested protocols.
 
 ### 15.3 Prediction, acknowledgement, and rollback
 
@@ -561,7 +563,7 @@ Peers compare confirmed canonical hashes whether the remote hash arrives before 
 
 ### 15.4 Current limits and acceptance
 
-The implemented acceptance harness launches two actual native engines and checks 140 direct tics plus 180 tics through a real TCP proxy with delay, jitter, loss, and duplicates. It requires identical linked confirmed hashes, genuine rollback/misprediction/resimulation, clean completion, descriptor/descriptor-digest agreement, and clean single-player regressions. Negative gates cover descriptor/session mismatch, protocol/player mismatch, malformed input, conflicting commands, bad magic, oversized frames, and deliberate hash corruption in both directions.
+The implemented acceptance harness launches two actual native engines and checks 140 direct tics, 140 explicit non-loopback LAN-interface tics on one test host, plus 180 tics through a real TCP proxy with delay, jitter, loss, and duplicates. It requires identical linked confirmed hashes, genuine rollback/misprediction/resimulation, clean completion, descriptor/descriptor-digest agreement, and clean single-player regressions. Negative gates cover descriptor/session mismatch, protocol/player mismatch, malformed input, conflicting commands, bad magic, oversized frames, malformed/wildcard bind addresses, and deliberate hash corruption in both directions. The LAN case is genuine non-loopback TCP but is not evidence of a physical two-machine private-Wi-Fi run.
 
 Current non-goals are browser multiplayer, more than two players, other maps or arbitrary initial saves, mid-game join, `BT_SPECIAL`, multi-file/PK3 session content, and production Internet security. Longer soak/fuzz/resource/performance testing and broader scenario coverage remain Phase 8 work. No competitive-legitimacy claim follows.
 
@@ -625,7 +627,7 @@ Phase gates require shared C, JavaScript, and Python vectors plus engine-level t
 - an injected one-byte deterministic state change produces a desync at the first affected checkpoint;
 - transport loss does not change Doom's 35 Hz simulation or invent remote inputs.
 
-## 18. Implementation status through Phase 6 native networking/rollback
+## 18. Implementation status through the Phase 7 bounded pixel slice
 
 | Capability | Status |
 |---|---|
@@ -652,7 +654,10 @@ Phase gates require shared C, JavaScript, and Python vectors plus engine-level t
 | Signed single-PWAD loader | Phase 5 reference-host milestone implemented and tested: SDK authentication/trust plus C-owned bytes, independent C SHA-256, structural bounds checks, memory-backed lump reads, and evidence-chain records; exactly one PWAD per manifest |
 | Multi-file and PK3 loading | Pending: multi-file order and a bounded PK3 reader are not implemented |
 | Native two-client netcode and rollback | Phase 6 reference profile implemented and tested: real TCP, complete commands, 8-tic prediction, bounded snapshots, retransmission, rollback/resimulation, matching confirmed hashes, refusal, and bidirectional desync detection |
-| Browser or secure public multiplayer | Pending: no browser transport, signed peer authentication, TLS, matchmaking, mid-game join, or more-than-two-player profile |
+| Explicit private-LAN interface binding | Implemented and tested on one host over non-loopback TCP with matching hashes; malformed/wildcard binds refused; no physical two-machine Wi-Fi result |
+| Browser or secure public multiplayer | Pending: no browser transport, signed peer authentication, encryption/TLS, matchmaking, mid-game join, or more-than-two-player profile |
+| Deterministic pixel/occupancy primitives | Phase 7 bounded slice implemented and tested with byte-identical native C, JavaScript BigInt, and WASM fixed-scene results; separate frame/occupancy hashes |
+| Doom strict renderer and texture validation | Pending: ordinary Doom rendering is unchanged; no texture/flat validator, fuzz/translucency profile, or full visual-integrity claim |
 
 ## 19. Phase 0 privacy and claim review
 
@@ -660,4 +665,52 @@ The exposure audit covered all ten public Zeq commits and 22 unique historical b
 
 Subsequent explicit authorization superseded the earlier push freeze for source delivery. Engine/reference-host source belongs in `hulyasmath/doomgeneric`; portable SDK source belongs in `hulyasmath/zeq-doomgeneric`; roadmap and integration documents are mirrored. Each uploaded file must be fetched back and compared with the exact local Git blob SHA. No repository deletion, history rewrite, visibility change, or claim that prior public exposure can be erased is authorized.
 
-The upstream baseline remains `e257a09527062bfb986b6e5e0780839b6cbd5b71`. Large arithmetic vectors are regenerated by committed Python generators rather than treated as hand-written source. WADs, private capsules, keys, machine logs, and build outputs are excluded. The Phase 5 signed-content SDK and single-PWAD real-engine loader are implemented and tested; multi-file/PK3 loading remains pending and no parcel executes or loads content. The Phase 6 native two-process reference profile is implemented and tested; browser networking, production transport security, and broader hardening remain future work.
+The upstream baseline remains `e257a09527062bfb986b6e5e0780839b6cbd5b71`. Large arithmetic vectors are regenerated by committed Python generators rather than treated as hand-written source. WADs, private capsules, keys, machine logs, and build outputs are excluded. The Phase 5 signed-content SDK and single-PWAD real-engine loader are implemented and tested; multi-file/PK3 loading remains pending and no parcel executes or loads content. The Phase 6 native two-process reference profile is implemented and tested, including one-host explicit non-loopback TCP; physical two-machine Wi-Fi, browser networking, production transport security, and broader hardening remain future work. Phase 7 has only the tested portable pixel/occupancy conformance slice, not a Doom renderer replacement.
+
+## 20. Optional `zeq-pixel-v1` raster primitives
+
+The portable `sdk/zeq_pixel.c/.h` and `sdk/zeq-pixel.js` modules implement a bounded conformance slice, not a Doom renderer replacement. They have no Doom types and are not linked into the ordinary Vanilla, Zeq Physics, or Legacy gameplay paths. C requires C99 plus GCC/Clang checked 128-bit intermediates; JavaScript uses BigInt.
+
+A surface has caller-owned storage, dimensions in `1..4096`, and at most 16777216 pixels. Each pixel stores `depth_q32`, `owner_id`, signed `layer_rank`, `claimed_mask`, and `rgba8`. Empty pixels serialize as depth `UINT32_MAX`, owner zero, layer `INT32_MAX`, zero claims, and zero color.
+
+Writes require nonzero owner and claim mask and alpha 255. Lower depth wins, then lower layer rank, then lower owner ID. Repeating an identical ownership/depth key with the same color merges claims; repeating it with another color is refused. Occluded and invalid writes do not replace the pixel. Span/column operations use clipped half-open integer ranges derived from rational endpoints, return accepted-write counts, return zero for degenerate/off-screen work, and return `-1` for malformed or reversed ranges. They do not roll back earlier accepted writes if a later pixel reports a conflict.
+
+Projection uses exact bounded rational arithmetic at 1/256-subpixel scale:
+
+```text
+x = width/2 + focal*x/z
+y = height/2 - focal*y/z
+```
+
+`z` and `focal` must be positive. Input numerators and denominators are bounded by 1000000000, denominators are positive, outputs are reduced rationals, and overflow/invalid inputs are refused. Inside/outside status is against `[0,width) × [0,height)`.
+
+Canonical serialization is little-endian and row-major. Both forms start with an eight-byte magic, little-endian `uint32` width, and little-endian `uint32` height:
+
+- `ZEQFRM1\0`: four RGBA8 bytes per pixel, with the in-memory integer defined as `0xRRGGBBAA`;
+- `ZEQOCC1\0`: sixteen bytes per pixel containing depth, owner, layer, and claims as little-endian 32-bit fields.
+
+`node sdk/tests/test_pixel.js` compiles and runs the same `zeq-pixel-conformance-v1` scene as native C, JavaScript, and WASM, compares every byte and expected status, and repeats native/WASM runs. The 9×7 fixture currently produces 268 frame bytes with SHA-256 `afaf2f3df60e9d265ad30a4c7bbf24a99c6eb688dfd9230c63d8cb8181d523c6` and 1024 occupancy bytes with SHA-256 `9cdc18f75e76bd7bb2b790890b805f05fe9513747eb3c35ef7179e019e8f0d7b`. These are test-fixture commitments, not hashes of normal Doom frames.
+
+Still pending are host renderer integration, texture/flat structural validation, palettes/colormaps, fuzz/translucency, broader resolution and geometry testing, and resource/performance budgets. Any future visual evidence must separately identify renderer, resolution, palette, content, and settings. Pixel or occupancy hashes never substitute for canonical gameplay hashes or establish competitive legitimacy.
+
+## 21. Private-LAN command example
+
+After building the same native revision on two trusted machines, replace the example addresses with each host's actual numeric private-LAN IPv4 address. On listener/player 0 (`192.168.1.10` in this example):
+
+```sh
+cd doomgeneric
+ZEQ_NET_SESSION=00112233445566778899aabbccddeeff \
+ZEQ_NET_LISTEN=26000 ZEQ_NET_BIND=192.168.1.10 ZEQ_MAX_TIC=1400 \
+./doomgeneric-headless
+```
+
+On connector/player 1:
+
+```sh
+cd doomgeneric
+ZEQ_NET_SESSION=00112233445566778899aabbccddeeff \
+ZEQ_NET_CONNECT=192.168.1.10:26000 ZEQ_MAX_TIC=1400 \
+./doomgeneric-headless
+```
+
+Both machines need the same engine/content/settings identity. Local firewall policy must permit the chosen TCP port. This example is unauthenticated and unencrypted, and its two-machine operation remains a user-side validation step until such a run is actually tested and recorded.
