@@ -1,7 +1,7 @@
 # Zeq SDK Third-Party Integration Guide v1
 
 Audience: developers adding Zeq to an existing game or simulation
-Status: current APIs are identified below; Phase 9–13 APIs are design targets, not shipped features
+Status: shipped APIs and the narrow Phase 11 contract-observation proof of concept are identified below; other Phase 9–13 capabilities remain design targets
 
 ## 1. What the SDK is
 
@@ -17,6 +17,10 @@ Current portable surfaces include:
 - signed records: `sdk/zeq-security.js`;
 - ZEQC3 encrypted saves: `sdk/zeq-capsule.js`;
 - signed content and sealed parcels: `sdk/zeq-content.js`;
+- deterministic network session descriptors and test-link impairment scheduling: `sdk/zeq-net.js`;
+- ordered event-to-contract observation: `sdk/zq/zeq-host.js`;
+- external contract-machine HTTP(S) access and an optional browser panel: `sdk/zq/zeq-browser.js` and `sdk/zq/zeq-panel.js`;
+- a scoped Doom contract-mapping example: `sdk/zq/examples/doom/doom-zeq.js`;
 - Doom replay/orchestration and local MCP: `sdk/zeq-replay.js` and `sdk/zeq-mcp.js`.
 
 `sdk/zeq_plugin.h` is explicitly `0.1.1-legacy`. Its 1287/1000 carrier, 0.777 s Zeqond, and 24 permille pulse are compatibility approximations. New exact integrations must use `zeq-time-v1`, not this legacy header.
@@ -29,6 +33,7 @@ Current portable surfaces include:
 | `zeq-physics-v1` | Doom’s reference lapse integrator | Currently uses signed Doom 16.16 momentum units per tic; not a universal SI physics API |
 | `zeq-arcade-legacy-v1` | Compatibility with the early arcade layer | Approximate legacy behavior; never mix with exact vectors |
 | Vanilla host profile | Unmodified host mechanics | SDK may observe/replay without changing gameplay |
+| `zeq-host-v1` observation | Declared host events mapped to external contract decisions | Ordered, asynchronous audit only; the host remains authoritative and refusals do not undo events |
 | Scientific numerical profile | Future Phase 9–10 analysis | Error-controlled, budgeted computation; not automatically bit-authoritative across hosts |
 | Display/cosmetic profile | Future visual carrier or presentation | Must not feed authoritative state unless a separate ruleset explicitly does so |
 
@@ -190,7 +195,7 @@ A canonical serializer must include future-affecting state and exclude presentat
 
 Pointers and callback addresses are process-specific. Replace them with stable symbolic IDs and a versioned object/action table. Define entity traversal order explicitly. Normalize only fields proven not to affect future canonical state.
 
-For Doom, replay canonicalization normalizes mobj `validcount`, omits global `validcount`, and masks `ML_MAPPED` only in canonical line serialization. Ordinary saves retain the original fields. Cosmetic wipe randomness uses a separate display RNG stream.
+For Doom, replay canonicalization normalizes mobj `validcount`, `ticcmd_t.consistancy`, and mobj sector/blockmap links; omits global `validcount`; and masks `ML_MAPPED` only in canonical line serialization. Ordinary saves and rollback snapshots retain the original fields, while exact mixed thinker order remains authoritative. Cosmetic wipe randomness uses a separate display RNG stream.
 
 A hash is only as meaningful as its serializer and run identity. Publish canonicalization tests that mutate every included field and demonstrate a hash change, plus presentation-state mutations that demonstrate no gameplay-hash change.
 
@@ -241,7 +246,50 @@ The Doom reference host now implements and tests a narrow single-PWAD profile: o
 
 Parcel plaintext is data. Never execute it or load it as a mod automatically. Opening a parcel does not grant capabilities, establish publisher trust, or validate its contents as safe code.
 
-## 11. Automation and local MCP
+## 11. Deterministic networking contracts
+
+`sdk/zeq-net.js` is an engine-neutral contract/test helper, not a multiplayer implementation. It validates and canonicalizes `zeq-net-session-v1`, computes descriptor bytes and SHA-256 digests, and schedules reproducible delay, bounded jitter, drops, and duplicates for a test transport. Its integer mixing function is only a deterministic test-link scheduler: it is not a security RNG or game RNG.
+
+A host implementing deterministic networking must still supply:
+
+1. real transport and at least two real host instances;
+2. complete authoritative commands ordered by `(tick, player)`;
+3. declared prediction and bounded command/snapshot windows;
+4. retransmission/acknowledgement rules that cannot strand an older lost command;
+5. actual pre-step snapshots containing every future-affecting subsystem;
+6. misprediction detection, restore, and exact resimulation;
+7. confirmed-versus-predicted evidence separation;
+8. matching canonical hashes and actionable desync diagnostics;
+9. fail-closed session/settings/protocol/duplicate validation.
+
+`session(input)` returns a validated frozen descriptor; `descriptorBytes(input)` returns its canonical UTF-8 bytes; and `descriptorDigest(input)` returns the SHA-256 hex digest. `scheduleImpairment(options)` returns an array of delivery times in caller-defined test tics, with an empty array representing a drop and repeated times representing duplicates. The caller owns actual sockets, queues, delivery, limits, and cleanup.
+
+The Doom reference profile demonstrates these requirements with two native C engines over real TCP, an 8-tic prediction window, a 32-tic snapshot window, and confirmed canonical checkpoints. That Doom adapter and its binary wire protocol are not portable SDK APIs. Browser networking, signed peer authentication, TLS, and secure public matchmaking are not supplied. Matching state hashes do not establish peer honesty or competitive legitimacy.
+
+## 12. Ordered event-contract observation
+
+The narrow `zeq-host-v1` surface lets an existing host describe semantic events and send them to an external contract-capable machine without moving simulation authority into that machine. It is a proof of concept within Phase 11, not the complete scenario, experiment, resource-budget, cancellation, plugin, or reproduction system.
+
+A host description contains:
+
+- `name`: a stable host/profile label;
+- `contracts`: named definitions with states, exactly one initial state, and declared transitions;
+- `on`: event-kind handlers, either direct transition descriptors or host functions;
+- optional `memory`, `kind`, and `validate` adapters for the host's event representation.
+
+`ZeqHost.check(definition)` performs local structural checks. `await ZeqHost.attach(machine, description)` validates the description, deploys contracts through `machine.contract`, and returns `send`, `idle`, `record`, `states`, `decisions`, and statistics. `send(event)` serializes decisions in event-emission order; callers must await `idle()` before expecting a complete exported record. `record()` exports `zeq-host-record-v1`. `ZeqHost.audit(null, record)` checks row links offline; `ZeqHost.audit(machine, record)` additionally compares definitions and row prefixes through `readContract`.
+
+These records are decision evidence, not canonical simulation state. The integrating host must define event ordering, schema, identity, bounds, authentication, retention, and failure behavior. A linked contract row does not prove the supplied event was truthful. A refusal does not revert an event that the authoritative host already applied. Predicted, speculative, or rolled-back host events must not be committed as confirmed observations.
+
+### 12.1 External machine connection
+
+`ZeqBrowser.connect({url, key})` uses the scoped bearer key only in caller memory. It requires HTTP(S), refuses URLs containing credentials, queries, or fragments, permits cleartext HTTP only on loopback, and requires HTTPS for non-loopback machines. It calls `/health`, `/record`, `/contracts`, and contract fire/read routes; the machine must explicitly allow the browser origin and enforce key scope and expiry. This module neither issues keys nor establishes machine trust.
+
+`ZeqPanel.mount(options)` supplies an optional browser UI for `ZeqBrowser` and `ZeqHost`. Disconnected observation is a no-op, and connection or decision errors do not block play. The panel clears its key input after every connection attempt and does not persist the key. Prefer mounting it into ordinary host layout rather than over gameplay controls. The browser host must still apply its own secret-redaction and content-security policies.
+
+The included Doom example is scoped to five contracts and explicitly labels health as a damage-derived estimate. Its local evaluator uses `new Function` only for trusted test definitions; it is not a production expression evaluator, Zeq machine, signer, or security boundary. No external-machine compatibility is established without an actual owner-configured machine run.
+
+## 13. Automation and local MCP
 
 Doom’s MCP implementation is a secured local process adapter, not a universal remote-control API. Run control requires `--allow-run`; live input requires `--allow-input`. Clients cannot choose arbitrary executable or WAD paths.
 
@@ -257,7 +305,7 @@ For another host:
 
 A future 20 Hz outer bot scheduler must feed ordinary host commands without changing Doom’s 35 Hz simulation. Similar adapters must preserve their host’s tick authority.
 
-## 12. Future units and numerical modules
+## 14. Future units and numerical modules
 
 Phases 9–10 will add safe equations, dimensional analysis, SI/Zeqond conversion, uncertainty, intervals, ODE integration, quadrature, roots, linear algebra, conditioning, and sensitivity. These are not yet shipped portable APIs.
 
@@ -273,7 +321,7 @@ Design constraints for adopters:
 
 Exact arithmetic does not make a false physical model true. Error-controlled computation does not prove that input measurements are accurate.
 
-## 13. Minimal adoption sequence
+## 15. Minimal adoption sequence
 
 ### Step 1 — Baseline the unmodified host
 
@@ -301,9 +349,9 @@ Verify content bytes and publisher trust before a bounded host-specific loader. 
 
 ### Step 7 — Add advanced modules only when justified
 
-Units, numerical solvers, contracts, plugins, and domain packs remain optional. Do not move them into the simulation hot path by default.
+Networking, units, numerical solvers, general contracts/scenarios, plugins, and domain packs remain optional. Do not move them into the simulation hot path by default. A descriptor/test scheduler alone is not a networking claim: gate real transport, rollback, matching hashes, and refusal behavior in the actual host. If `zeq-host-v1` observation is needed, keep it outside authoritative simulation, test ordering and failure behavior, and consume confirmed events only.
 
-## 14. Conformance checklist
+## 16. Conformance checklist
 
 An integration is ready to claim a specific SDK profile only when it has:
 
@@ -325,10 +373,12 @@ An integration is ready to claim a specific SDK profile only when it has:
 
 Property and fuzz tests should include random integer boundaries, phase wrap, long runs, reordered entities, truncated buffers, duplicate IDs, path traversal, oversized inputs, signature/hash mismatch, replay divergence, and resource exhaustion. A fuzz crash or hang is a failed gate, not a test-only curiosity.
 
-## 15. What not to infer
+## 17. What not to infer
 
 - Exact time alone does not make the whole engine deterministic.
-- A deterministic replay does not prove fair competition.
+- A deterministic replay or matching network hashes do not prove fair competition.
+- A network descriptor helper or test impairment scheduler is not a transport, rollback engine, or authenticated multiplayer service.
+- A contract decision or linked observation record is not proof that the host event was truthful, that gameplay was enforced, or that the full Phase 11 system exists.
 - A signature does not establish publisher trust.
 - A signed plugin is not sandboxed code.
 - An encrypted parcel is not executable content permission.
