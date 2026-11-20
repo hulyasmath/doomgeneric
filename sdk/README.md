@@ -55,6 +55,8 @@ local-first record of play. The bridge only *mirrors* telemetry outward.
 | `zeq-mcp.js`      | Node.js ≥18| Local stdio MCP lifecycle, input, state, proof, verification |
 | `zeq-content.js`  | JS (UMD)   | Signed mods, explicit publisher trust, sealed expiring parcels |
 | `zeq-net.js`      | JS (UMD)   | Canonical session descriptors and deterministic test-link impairment scheduling; not a transport |
+| `zeq_pixel.c/.h`  | C99 + i128 | Optional opaque raster, rational projection, occupancy, and canonical bytes |
+| `zeq-pixel.js`    | JS (UMD)   | BigInt-equivalent `zeq-pixel-v1` reference implementation |
 | `zq/zeq-host.js`  | JS (UMD)   | Ordered, engine-neutral event-to-contract adaptation and linked-record audit |
 | `zq/zeq-browser.js` | JS (UMD) | HTTP(S) client for an owner-configured contract machine; scoped key held in memory |
 | `zq/zeq-panel.js` | JS (browser) | Optional non-authoritative connection/status panel |
@@ -125,12 +127,13 @@ python3 sdk/tests/test_content.py
 node sdk/tests/test_security.js
 node sdk/tests/test_content.js
 node sdk/tests/test_net.js
+node sdk/tests/test_pixel.js
 node sdk/zq/tests/test_doom.js
 node sdk/tests/test_sidecar.js
 ```
 
 The C implementation requires checked compiler 128-bit integers. Node.js 20 or
-later is recommended. The two Python vector tests regenerate the small checked-in
+later is recommended. The pixel conformance test also requires Emscripten (`emcc`, or `EMCC=/path/to/emcc`) so it can compare native C, JavaScript, and WASM bytes. The two Python vector tests regenerate the small checked-in
 security/content fixtures independently; the JavaScript suites must reproduce
 those exact bytes. `test_sidecar.js` creates temporary local identities and
 removes them after the test. The real Doom replay and MCP suites are run from
@@ -256,8 +259,24 @@ for test links. It does not open sockets, simulate peers, or implement rollback.
 The real reference-host gate launches two native Doom engines over TCP, exchanges
 complete commands, restores actual engine snapshots, resimulates mispredictions,
 and requires matching confirmed canonical hashes under direct and impaired
-transport. Browser networking, signed peer authentication, TLS, matchmaking, and
+transport. The native listener defaults to loopback and accepts an explicit
+numeric `ZEQ_NET_BIND` local IPv4 for private-LAN use; the one-host non-loopback
+LAN case passes, but no physical two-machine Wi-Fi result is claimed. Browser
+networking, signed peer authentication, encryption/TLS, matchmaking, and
 production public multiplayer remain unsupported.
+
+## Deterministic raster primitives (bounded Phase 7 slice)
+
+`zeq_pixel.c/.h` and `zeq-pixel.js` implement optional `zeq-pixel-v1` opaque
+raster primitives without Doom types. They provide caller-owned per-pixel
+depth/owner/layer/claim state, deterministic arbitration, bounded rational
+projection, clipped spans/columns, and canonical frame/occupancy serialization.
+The fixed native-C/JavaScript/WASM fixture matches byte-for-byte and rejects
+same-key color conflicts, transparent writes, malformed geometry, overflow, and
+short buffers. Doom's normal renderer is unchanged. Host renderer integration,
+texture/flat validation, palette/colormap/fuzz/translucency behavior, and the
+complete visual-integrity profile remain pending. Visual hashes are separate
+from gameplay hashes and are not competitive-legitimacy evidence.
 
 ## Event-contract observation (narrow Phase 11 proof of concept)
 

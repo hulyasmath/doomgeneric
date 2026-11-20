@@ -28,7 +28,7 @@ Phases 0–4, the Phase 5 signed-content/sealed-parcel SDK milestone, the single
 signed-PWAD reference-host loader, and the Phase 6 native two-client reference
 profile are implemented and tested as described below. Multi-file/PK3 loading,
 remaining Phase 5 hardening, browser networking, and broader network hardening
-remain open. Phases 7–10 are pending; Phase 11 has only the narrow contract-
+remain open. Phase 7 has a tested portable pixel-conformance slice, while full renderer integration and visual integrity remain pending; Phases 8–10 are pending. Phase 11 has only the narrow contract-
 observation proof of concept described below, and the general Phase 11–13 programs
 remain unfinished. The roadmap distinguishes partial, pending, and proposed work
 so future framework capabilities are not presented as shipping features.
@@ -107,9 +107,18 @@ so future framework capabilities are not presented as shipping features.
   and compare confirmed canonical SHA-256 checkpoints. Delay, jitter, loss, and
   duplicates are tested through a real TCP proxy; conflicting commands, malformed
   frames, mismatched sessions/descriptors, and state-hash divergence fail closed.
-  This is a fresh-E1M1, two-player native conformance profile only: browser
-  multiplayer, authenticated peer identity, TLS, Internet matchmaking, mid-game
+  The listener defaults to loopback; an explicit numeric `ZEQ_NET_BIND` enables
+  direct private-LAN interface selection and has passed a one-host non-loopback
+  TCP/hash test. Physical two-machine Wi-Fi validation remains pending. This is
+  a fresh-E1M1, two-player native conformance profile only: browser multiplayer,
+  authenticated peer identity, encryption/TLS, Internet matchmaking, mid-game
   join, and more than two players are not supplied.
+- **Deterministic raster primitives (Phase 7 bounded slice)** — portable C and
+  JavaScript `zeq-pixel-v1` modules provide opaque per-pixel ownership/depth
+  arbitration, rational projection, clipped spans/columns, and canonical frame/
+  occupancy bytes. One fixed scene matches byte-for-byte across native C,
+  JavaScript BigInt, and WASM. Normal Doom rendering is unchanged; host renderer
+  integration, texture validation, translucency/fuzz, and broader gates remain.
 - **Portable contract observation (reviewed PR #3 proof of concept)** — an
   engine-neutral host layer maps real Doom events into weapon, player, ruleset,
   level, and save-load contract decisions. The browser's optional ZEQ CONTRACTS
