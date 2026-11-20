@@ -13,10 +13,12 @@ and consumed by the reference host through an explicit release identity.
 
 Read the [consolidated Phase 0–13 roadmap](../docs/zeq-roadmap-v1.md) and the
 [third-party integration guide](../docs/zeq-sdk-integration-v1.md) before adopting
-the SDK. Current time, replay, evidence, save, and content APIs are documented
-there with their exact boundaries. Unit/dimensional analysis, scientific numerical
-methods, generalized contracts/plugins, and second-engine validation are Phases
-9–13 and are not yet shipped portable APIs.
+the SDK. Current time, replay, evidence, save, content, network-contract, and
+narrow event-contract observation APIs are documented there with their exact
+boundaries. Unit/dimensional analysis, scientific numerical methods, the general
+scenario/experiment/plugin system, and second-engine validation remain Phase
+9–13 work. The shipped `zeq-host-v1` observer is a proof of concept, not completion
+of those programs.
 
 The architecture is split cleanly in two:
 
@@ -52,6 +54,11 @@ local-first record of play. The bridge only *mirrors* telemetry outward.
 | `zeq-replay.js`   | Node.js ≥18| Real headless input, canonical checkpoints, replay and proof |
 | `zeq-mcp.js`      | Node.js ≥18| Local stdio MCP lifecycle, input, state, proof, verification |
 | `zeq-content.js`  | JS (UMD)   | Signed mods, explicit publisher trust, sealed expiring parcels |
+| `zeq-net.js`      | JS (UMD)   | Canonical session descriptors and deterministic test-link impairment scheduling; not a transport |
+| `zq/zeq-host.js`  | JS (UMD)   | Ordered, engine-neutral event-to-contract adaptation and linked-record audit |
+| `zq/zeq-browser.js` | JS (UMD) | HTTP(S) client for an owner-configured contract machine; scoped key held in memory |
+| `zq/zeq-panel.js` | JS (browser) | Optional non-authoritative connection/status panel |
+| `zq/examples/doom/doom-zeq.js` | JS (UMD) | Scoped Doom event mapping; an example, not part of the engine-neutral runtime |
 | `vectors/`        | JSON       | Shared C/JavaScript/Python conformance vectors               |
 
 The SDK has no npm dependencies. The Doom WASM reference integration has its own
@@ -117,6 +124,8 @@ python3 sdk/tests/test_security.py
 python3 sdk/tests/test_content.py
 node sdk/tests/test_security.js
 node sdk/tests/test_content.js
+node sdk/tests/test_net.js
+node sdk/zq/tests/test_doom.js
 node sdk/tests/test_sidecar.js
 ```
 
@@ -233,11 +242,69 @@ node sdk/tests/test_content.js      # 12 SDK checks + exact Python interop
 ```
 
 The reference host browser ledger's **TEST PHASE 5 SDK** button runs the same 12-check suite.
-This is not the engine loader milestone: no content has yet been passed to Doom's
-`W_AddFile`. A later loader must verify every digest/size and supply the same
-immutable bytes to the engine, define WAD lump ordering, and prevent TOCTOU
-replacement. PK3 remains unsupported until a bounded ZIP reader and lump mapping
-exist.
+The separate reference host now implements and tests a narrow single-PWAD loader:
+SDK signature/trust/size/digest verification, an engine-owned copy, independent C
+SHA-256 and structural checks, and memory-backed lump reads from the same bytes.
+Multi-file load order and PK3 remain unsupported until their bounded mappings and
+readers exist. Parcel plaintext is never executed or automatically loaded.
+
+## Deterministic network contracts (Phase 6)
+
+`zeq-net.js` validates canonical `zeq-net-session-v1` descriptors, computes their
+SHA-256 identity, and supplies deterministic delay/jitter/drop/duplicate scheduling
+for test links. It does not open sockets, simulate peers, or implement rollback.
+The real reference-host gate launches two native Doom engines over TCP, exchanges
+complete commands, restores actual engine snapshots, resimulates mispredictions,
+and requires matching confirmed canonical hashes under direct and impaired
+transport. Browser networking, signed peer authentication, TLS, matchmaking, and
+production public multiplayer remain unsupported.
+
+## Event-contract observation (narrow Phase 11 proof of concept)
+
+`zq/zeq-host.js` (`zeq-host-v1`) accepts an engine-neutral host description:
+named contract definitions plus event handlers. `ZeqHost.attach(machine, spec)`
+validates and deploys those definitions, serializes event decisions in emission
+order, exposes decision/statistic views, and exports `zeq-host-record-v1`.
+`ZeqHost.audit(machineOrNull, record)` checks linked contract rows offline and,
+when a machine handle is supplied, compares them with `readContract`. The host
+must supply truthful, ordered, fully described events; the adapter cannot prove
+that they occurred or make a refused transition undo host behavior.
+
+`zq/zeq-browser.js` (`zeq-browser-v1`) connects to an owner-configured HTTP(S)
+contract machine using a scoped bearer key. Cleartext HTTP is allowed only for
+loopback; non-loopback machines require HTTPS. URLs containing credentials,
+queries, or fragments are refused. The key remains in caller memory and is not
+persisted by the module. The external machine owns deployment, transition,
+condition-evaluation, and record decisions; this client is not a signer or a
+security boundary.
+
+`zq/zeq-panel.js` (`zeq-panel-v1`) is an optional browser UI. Disconnected sends
+resolve without effect, connection/decision failures are displayed, and gameplay
+is never blocked. The integration clears the key input after every connection
+attempt. Mount the panel into normal layout when an overlay could intercept host
+controls.
+
+The scoped example in `zq/examples/doom/doom-zeq.js` maps real Doom event IDs to
+five narrow contracts: weapon cooldown, damage-derived player health estimate,
+three distinct ruleset identities, a restricted shareware level graph, and a
+save-load resumed marker. It does not provide authoritative health, general Doom
+semantics, gameplay enforcement, anti-cheat, or the full Phase 11 scenario and
+experiment system. The Doom example is deliberately separate from the portable
+runtime modules.
+
+```sh
+node sdk/zq/tests/test_doom.js
+```
+
+The default test uses `sdk/zq/tests/contract-test-machine.js`, a conformance-only
+in-memory evaluator and HTTP server. It is not a Zeq machine, signer, security
+boundary, or proof of external-machine compatibility. Its `new Function`
+condition evaluation is restricted to trusted test definitions; production
+conditions remain the external machine's responsibility and must not use an
+unrestricted evaluator. An owner-provided external machine can be tested with
+`ZEQ_MACHINE_URL` and `ZEQ_KEY_FILE`; no external-machine result is implied by
+the local suite. The real native and played-WASM reference-host adapters and
+their tests remain in `hulyasmath/doomgeneric`.
 
 ## What a proof does and does not cover
 
@@ -282,8 +349,8 @@ working code:
 | 5 | Exact rational math           | **Implemented** | BigInt (JS) / checked fixed-width integer (C), with shared vectors |
 | 6 | Finite-interval impulses      | **Implemented (Doom Physics ruleset)** | Actual damage/explosion paths, X/Y/Z, 32 deterministic substeps |
 | 7 | Zeqond cooldowns              | **Implemented (Doom Physics ruleset)** | Exact ready tics enforced in `P_FireWeapon` |
-| 8 | split64 netcode               | **Roadmap** | no networking code ships; no multiplayer claims are made |
-| 9 | Signed WAD/PK3 loader         | **SDK milestone only** | Manifest/trust/file verification implemented; no `W_AddFile` integration or PK3 support |
+| 8 | Deterministic networking     | **Native reference + SDK contracts** | `zeq-net.js` descriptors/impairment tests; real two-process TCP rollback in the external Doom host; no browser/public multiplayer |
+| 9 | Signed WAD/PK3 loader         | **Single-PWAD reference milestone** | SDK verification plus tested external single-PWAD engine loader; multi-file/PK3 unsupported |
 |10 | `boxSeal`/`boxOpen` parcels   | **Implemented (SDK)** | Signed, encrypted, expiring, bounded, replay-protected parcels; plaintext is never executed |
 |11 | MCP agent bridge              | **Implemented (local stdio)** | Seven lifecycle/input/state/proof methods; opt-in controls and secret rejection |
 |12 | Headless 20 Hz bot            | **Roadmap** | Real 35 Hz headless replay is implemented; the separate 20 Hz bot scheduler is not |
