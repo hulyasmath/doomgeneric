@@ -38,18 +38,19 @@ function launch(player, port, input, extraEnv = {}) {
   const prefix = process.platform === "linux" && fs.existsSync(loader)
     ? ["/usr/bin/stdbuf", "-o0", "-e0", loader, engine]
     : [engine];
+  const { maxTic = 140, connectHost = "127.0.0.1", ...environment } = extraEnv;
   const child = spawn(prefix[0], [...prefix.slice(1), ...args], {
     cwd,
     env: {
       ...process.env,
       ZEQ_RUN_ID: session,
       ZEQ_NET_SESSION: session,
-      ZEQ_MAX_TIC: String(extraEnv.maxTic || 140),
+      ZEQ_MAX_TIC: String(maxTic),
       ZEQ_CHECKPOINT_INTERVAL: "1",
       ZEQ_RULESET: "1",
       ZEQ_REALTIME: "0",
-      ...(player === 0 ? { ZEQ_NET_LISTEN: String(port) } : { ZEQ_NET_CONNECT: `127.0.0.1:${port}` }),
-      ...extraEnv
+      ...(player === 0 ? { ZEQ_NET_LISTEN: String(port) } : { ZEQ_NET_CONNECT: `${connectHost}:${port}` }),
+      ...environment
     },
     stdio: ["pipe", "pipe", "pipe"]
   });
@@ -68,6 +69,15 @@ function launch(player, port, input, extraEnv = {}) {
   return { child, done, getStdout: () => stdout, getStderr: () => stderr };
 }
 function delay(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+function nonLoopbackIPv4() {
+  if (process.env.ZEQ_NET_LAN_HOST) return process.env.ZEQ_NET_LAN_HOST;
+  for (const addresses of Object.values(os.networkInterfaces())) {
+    for (const address of addresses || []) {
+      if (!address.internal && (address.family === "IPv4" || address.family === 4)) return address.address;
+    }
+  }
+  return null;
+}
 async function waitForStartup(run) {
   const deadline = Date.now() + 10000;
   while (!run.getStdout().includes("D_CheckNetGame: Checking network game status")) {
@@ -172,7 +182,7 @@ async function runPair(options = {}) {
   const proxy = options.impaired ? await impairedProxy(enginePort, clientPort) : null;
   const host = launch(0, enginePort, commandStream(0, maxTic), { maxTic, ...(options.hostEnv || {}) });
   await waitForStartup(host);
-  const client = launch(1, options.impaired ? clientPort : enginePort, options.clientInput || commandStream(1, maxTic), { maxTic, ...(options.clientEnv || {}) });
+  const client = launch(1, options.impaired ? clientPort : enginePort, options.clientInput || commandStream(1, maxTic), { maxTic, connectHost: options.connectHost || "127.0.0.1", ...(options.clientEnv || {}) });
   const timer = setTimeout(() => {
     console.error("pair timeout", proxy ? { ...proxy.stats, starved: proxy.starved().slice(0, 30) } : { direct: true });
     host.child.kill("SIGKILL"); client.child.kill("SIGKILL");
@@ -278,7 +288,39 @@ function assertNoErrors(run) {
     assert.equal(await ZeqNet.descriptorDigest(descriptor), descriptorRecord.descriptor_sha256);
     assert.ok(run.records.some((record) => record.kind === "net-summary" && record.confirmed_tics === 140));
   }
-  report.direct = { tics: 140, matchingHashes: true };
+  const defaultListener = direct.host.records.find((record) => record.kind === "net-listen");
+  assert.equal(defaultListener.bind, "127.0.0.1");
+  assert.equal(defaultListener.bind_scope, "loopback-default");
+  report.direct = { tics: 140, matchingHashes: true, listener: defaultListener.bind_scope };
+  }
+
+  if (!process.env.ZEQ_NET_CASE || process.env.ZEQ_NET_CASE === "lan") {
+  const lanHost = nonLoopbackIPv4();
+  if (!lanHost) throw new Error("set ZEQ_NET_LAN_HOST to a non-loopback local IPv4 address for the LAN transport gate");
+  assert.equal(net.isIPv4(lanHost), true);
+  const lan = await runPair({ maxTic: 140, connectHost: lanHost,
+    hostEnv: { ZEQ_NET_BIND: lanHost, ZEQ_NET_VERIFY_BOUNDARIES: "1" },
+    clientEnv: { ZEQ_NET_VERIFY_BOUNDARIES: "1" } });
+  assertNoErrors(lan.host);
+  assertNoErrors(lan.client);
+  assert.deepEqual(assertChain(lan.host, 140), assertChain(lan.client, 140));
+  const listener = lan.host.records.find((record) => record.kind === "net-listen");
+  assert.equal(listener.bind, lanHost);
+  assert.equal(listener.bind_scope, "explicit-non-loopback");
+  const invalidBind = launch(0, nextPort++, commandStream(0, 20), { maxTic: 20, ZEQ_NET_BIND: "not-an-ip" });
+  const invalidTimer = setTimeout(() => invalidBind.child.kill("SIGKILL"), 15000);
+  const invalidResult = await invalidBind.done;
+  clearTimeout(invalidTimer);
+  assert.ok(invalidResult.records.some((record) => record.kind === "net-error" && record.reason === "listen"));
+  assert.equal(invalidResult.records.filter((record) => record.kind === "checkpoint").length, 0);
+  const wildcardBind = launch(0, nextPort++, commandStream(0, 20), { maxTic: 20, ZEQ_NET_BIND: "0.0.0.0" });
+  const wildcardTimer = setTimeout(() => wildcardBind.child.kill("SIGKILL"), 15000);
+  const wildcardResult = await wildcardBind.done;
+  clearTimeout(wildcardTimer);
+  assert.ok(wildcardResult.records.some((record) => record.kind === "net-error" && record.reason === "listen"));
+  report.lan = { tics: 140, matchingHashes: true, transport: "real non-loopback TCP on one test host",
+    bindScope: listener.bind_scope, malformedBindRefused: true, wildcardBindRefused: true,
+    physicalTwoMachineWiFiTest: false };
   }
 
   if (!process.env.ZEQ_NET_CASE || process.env.ZEQ_NET_CASE === "impaired") {
