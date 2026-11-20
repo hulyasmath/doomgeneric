@@ -8,6 +8,7 @@
 #include "w_wad.h"
 #include "zeq_doom.h"
 #include "zeq_sha256.h"
+#include "zeq_visual.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -84,11 +85,12 @@ static int validate_wad(const uint8_t *data, size_t length, uint32_t *lump_count
     return 1;
 }
 
-int ZEQ_LoadVerifiedWad(const void *data, uint32_t length,
+static int verified_wad(const void *data, uint32_t length,
                         const char *expected_sha256,
                         const char *mod_id, const char *mod_version,
                         const char *publisher_key_id,
-                        int publisher_trusted, unsigned int ruleset_mask)
+                        int publisher_trusted, unsigned int ruleset_mask,
+                        int commit)
 {
     static const char digits[] = "0123456789abcdef";
     zeq_sha256_t sha;
@@ -150,6 +152,12 @@ int ZEQ_LoadVerifiedWad(const void *data, uint32_t length,
         return reject(ZEQ_CONTENT_MALFORMED_WAD);
     }
     evidence.lump_count = (int32_t)lumps;
+    if (!commit)
+    {
+        free(owned);
+        evidence.status = ZEQ_CONTENT_VALIDATED;
+        return 1;
+    }
     if (!W_AddMemoryFile(owned, length))
     {
         // W_AddMemoryFile owns and releases the buffer on every path.
@@ -158,7 +166,28 @@ int ZEQ_LoadVerifiedWad(const void *data, uint32_t length,
     memcpy(loaded_digest, evidence.content_sha256, sizeof(loaded_digest));
     evidence.status = ZEQ_CONTENT_LOADED;
     evidence.engine_lump_count = (int32_t)W_NumLumps();
+    ZEQ_VisualContentChanged();
     return 1;
+}
+
+int ZEQ_LoadVerifiedWad(const void *data, uint32_t length,
+                        const char *expected_sha256,
+                        const char *mod_id, const char *mod_version,
+                        const char *publisher_key_id,
+                        int publisher_trusted, unsigned int ruleset_mask)
+{
+    return verified_wad(data, length, expected_sha256, mod_id, mod_version,
+                        publisher_key_id, publisher_trusted, ruleset_mask, 1);
+}
+
+int ZEQ_ValidateVerifiedWad(const void *data, uint32_t length,
+                            const char *expected_sha256,
+                            const char *mod_id, const char *mod_version,
+                            const char *publisher_key_id,
+                            int publisher_trusted, unsigned int ruleset_mask)
+{
+    return verified_wad(data, length, expected_sha256, mod_id, mod_version,
+                        publisher_key_id, publisher_trusted, ruleset_mask, 0);
 }
 
 const zeq_content_evidence_t *ZEQ_GetContentEvidence(void)
