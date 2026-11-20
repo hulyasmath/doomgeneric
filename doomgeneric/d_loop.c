@@ -26,6 +26,9 @@
 #if defined(ZEQ_HEADLESS) || defined(ZEQ_CANONICAL)
 #include "zeq_headless.h"
 #endif
+#ifdef ZEQ_HEADLESS
+#include "zeq_net.h"
+#endif
 #include "d_ticcmd.h"
 
 #include "i_system.h"
@@ -131,8 +134,8 @@ static int GetAdjustedTime(void)
 
     if (new_sync)
     {
-			// Use the adjustments from net_client.c only if we are
-			// using the new sync mode.
+				// Use the adjustments from net_client.c only if we are
+				// using the new sync mode.
 
         time_ms += (offsetms / FRACUNIT);
     }
@@ -356,8 +359,9 @@ static void BlockUntilStart(net_gamesettings_t *settings,
             I_Error("Lost connection to server");
         }
 
-        if (callback != NULL && !callback(net_client_wait_data.ready_players,
-                                          net_client_wait_data.num_players))
+        if (callback != NULL
+            && !callback(net_client_wait_data.ready_players,
+                         net_client_wait_data.num_players))
         {
             I_Error("Netgame startup aborted.");
         }
@@ -385,7 +389,7 @@ void D_StartNetGame(net_gamesettings_t *settings,
     // @category net
     //
     // Use new network client sync code rather than the classic
-    // sync code. This is currently disabled by default because it
+    // sync code. This is currently disabled by default because it's
     // has some bugs.
     //
     if (M_CheckParm("-newsync") > 0)
@@ -469,14 +473,25 @@ void D_StartNetGame(net_gamesettings_t *settings,
     //}
 #else
     settings->consoleplayer = 0;
-			settings->num_players = 1;
-			settings->player_classes[0] = player_class;
-			settings->new_sync = 0;
-			settings->extratics = 1;
-			settings->ticdup = 1;
+				settings->num_players = 1;
+				settings->player_classes[0] = player_class;
+				settings->new_sync = 0;
+				settings->extratics = 1;
+				settings->ticdup = 1;
 
-			ticdup = settings->ticdup;
-			new_sync = settings->new_sync;
+				ticdup = settings->ticdup;
+				new_sync = settings->new_sync;
+#ifdef ZEQ_HEADLESS
+    if (ZEQ_NetEnabled())
+    {
+        int i;
+        settings->consoleplayer = ZEQ_NetPlayer();
+        settings->num_players = 2;
+        localplayer = settings->consoleplayer;
+        for (i = 0; i < NET_MAXPLAYERS; ++i)
+            local_playeringame[i] = i < 2;
+    }
+#endif
 #endif
 }
 
@@ -530,14 +545,13 @@ boolean D_InitNetGame(net_connect_data_t *connect_data)
 
             if (addr == NULL)
             {
-                I_Error("No server found on local LAN");
+                I_Error("Could not find any servers on the LAN.");
             }
         }
 
         //!
         // @category net
         // @arg <address>
-        // @category net
         //
         // Connect to a multiplayer server running on the given
         // address.
@@ -559,7 +573,6 @@ boolean D_InitNetGame(net_connect_data_t *connect_data)
         //!
         // @category net
         // @arg <address>
-        // @category net
         //
         // Connect to a multiplayer server running on the given
         // address.
@@ -599,6 +612,9 @@ boolean D_InitNetGame(net_connect_data_t *connect_data)
 //
 void D_QuitNetGame (void)
 {
+#ifdef ZEQ_HEADLESS
+    ZEQ_NetClose();
+#endif
 #ifdef FEATURE_MULTIPLAYER
     NET_SV_Shutdown();
     NET_CL_Disconnect();
@@ -649,7 +665,7 @@ static void OldNetSync(void)
 
     if (keyplayer < 0)
     {
-        // If there are no players, we can never advance anyway
+        // If there are no players, we cannot advance anyway
 
         return;
     }
@@ -684,8 +700,8 @@ static boolean PlayersInGame(void)
     boolean result = false;
     unsigned int i;
 
-    // If we are connected to a server, check if there are any players
-    // in the game.
+    // If we are connected to a server, check if there are any
+    // players in the game.
 
     if (net_client_connected)
     {
@@ -714,7 +730,7 @@ static void TicdupSquash(ticcmd_set_t *set)
     ticcmd_t *cmd;
     unsigned int i;
 
-    for (i = 0; i < NET_MAXPLAYERS ; ++i)
+    for (i=0 ; i<NET_MAXPLAYERS ; i++)
     {
         cmd = &set->cmds[i];
         cmd->chatchar = 0;
@@ -754,6 +770,16 @@ void TryRunTics (void)
     int	counts;
     unsigned int start_load_resync_generation = load_resync_generation;
 
+#ifdef ZEQ_HEADLESS
+    // Phase 6 owns a separate predicted/confirmed schedule. Predicted tics
+    // never pass through the ordinary confirmed replay/checkpoint hooks.
+    if (ZEQ_NetEnabled())
+    {
+        ZEQ_NetTryRunTics(loop_interface);
+        return;
+    }
+#endif
+
     // get real tics
     entertic = I_GetTime() / ticdup;
     realtics = entertic - oldentertics;
@@ -779,7 +805,7 @@ void TryRunTics (void)
 
     if (new_sync)
     {
-			counts = availabletics;
+				counts = availabletics;
     }
     else
     {
@@ -801,26 +827,26 @@ void TryRunTics (void)
     }
 
     if (counts < 1)
-			counts = 1;
+				counts = 1;
 
     // wait for new tics if needed
 
     while (!PlayersInGame() || lowtic < gametic/ticdup + counts)
     {
-			NetUpdate ();
+				NetUpdate ();
 
         lowtic = GetLowTic();
 
-			if (lowtic < gametic/ticdup)
-			    I_Error ("TryRunTics: lowtic < gametic");
+				if (lowtic < gametic/ticdup)
+				    I_Error ("TryRunTics: lowtic < gametic");
 
         // Don't stay in this loop forever.  The menu is still running,
         // so return to update the screen
 
-			if (I_GetTime() / ticdup - entertic > 0)
-			{
-			    return;
-			}
+				if (I_GetTime() / ticdup - entertic > 0)
+				{
+				    return;
+				}
 
         I_Sleep(1);
     }
@@ -842,8 +868,8 @@ void TryRunTics (void)
             SinglePlayerClear(set);
         }
 
-			for (i=0 ; i<ticdup ; i++)
-			{
+				for (i=0 ; i<ticdup ; i++)
+				{
             if (gametic/ticdup > lowtic)
                 I_Error ("gametic>lowtic");
 
@@ -856,7 +882,7 @@ void TryRunTics (void)
 #ifdef ZEQ_HEADLESS
             ZEQ_HeadlessAfterTic();
 #endif
-			    gametic++;
+				    gametic++;
 
             // A load can replace gametic and maketic inside RunTic. The
             // lowtic and batch count captured above no longer describe this
@@ -866,12 +892,12 @@ void TryRunTics (void)
             if (load_resync_generation != start_load_resync_generation)
                 return;
 
-			    // modify command for duplicated tics
+				    // modify command for duplicated tics
 
             TicdupSquash(set);
-			}
+				}
 
-			NetUpdate ();	// check for new console commands
+				NetUpdate ();	// check for new console commands
     }
 }
 
