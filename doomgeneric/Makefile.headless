@@ -19,7 +19,8 @@ SRC_DOOM := dummy.c am_map.c doomdef.c doomstat.c dstrings.c d_event.c \
     st_stuff.c s_sound.c tables.c v_video.c wi_stuff.c w_checksum.c \
     w_file.c w_main.c w_wad.c z_zone.c w_file_stdc.c i_input.c \
     i_video.c doomgeneric.c doomgeneric_headless.c zeq_doom.c zeq_content.c zeq_capture.c \
-    zeq_headless.c zeq_net.c zeq_sha256.c ../sdk/zeq_time.c ../sdk/zeq_physics.c
+    zeq_headless.c zeq_net.c zeq_sha256.c zeq_visual.c ../sdk/zeq_time.c ../sdk/zeq_physics.c \
+    ../sdk/zeq_pixel.c ../sdk/zeq_texture.c
 OBJECTS := $(addprefix $(OBJDIR)/,$(notdir $(SRC_DOOM:.c=.o)))
 
 all: $(OUTPUT)
@@ -39,6 +40,12 @@ $(OBJDIR)/zeq_time.o: ../sdk/zeq_time.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJDIR)/zeq_physics.o: ../sdk/zeq_physics.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJDIR)/zeq_pixel.o: ../sdk/zeq_pixel.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJDIR)/zeq_texture.o: ../sdk/zeq_texture.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 ../sdk/zeq_sine_q30.inc:

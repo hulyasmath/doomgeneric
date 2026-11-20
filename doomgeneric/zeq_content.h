@@ -23,7 +23,8 @@ typedef enum
     ZEQ_CONTENT_DIGEST_MISMATCH = 6,
     ZEQ_CONTENT_MALFORMED_WAD = 7,
     ZEQ_CONTENT_ENGINE_REFUSED = 8,
-    ZEQ_CONTENT_DUPLICATE = 9
+    ZEQ_CONTENT_DUPLICATE = 9,
+    ZEQ_CONTENT_VALIDATED = 10
 } zeq_content_status_t;
 
 typedef struct
@@ -47,6 +48,11 @@ int ZEQ_LoadVerifiedWad(const void *data, uint32_t length,
                         const char *mod_id, const char *mod_version,
                         const char *publisher_key_id,
                         int publisher_trusted, unsigned int ruleset_mask);
+int ZEQ_ValidateVerifiedWad(const void *data, uint32_t length,
+                            const char *expected_sha256,
+                            const char *mod_id, const char *mod_version,
+                            const char *publisher_key_id,
+                            int publisher_trusted, unsigned int ruleset_mask);
 const zeq_content_evidence_t *ZEQ_GetContentEvidence(void);
 int ZEQ_ContentLumpPresent(const char *name);
 int ZEQ_ContentReadLump(const char *name, void *output, uint32_t capacity);

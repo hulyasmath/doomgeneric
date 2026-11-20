@@ -2,9 +2,11 @@
 #include "doomgeneric.h"
 #include "doomstat.h"
 #include "zeq_headless.h"
+#include "zeq_visual.h"
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <time.h>
 
 static uint32_t realtime_origin;
@@ -57,6 +59,15 @@ int main(int argc, char **argv)
     {
         ZEQ_HeadlessPump();
         doomgeneric_Tick();
+    }
+    ZEQ_HeadlessFlushVisual();
+    {
+        const char *visual_output = getenv("ZEQ_VISUAL_OUTPUT");
+        if (visual_output && *visual_output && !ZEQ_VisualWriteLatest(visual_output))
+        {
+            fprintf(stderr, "could not write latest visual evidence\n");
+            return 2;
+        }
     }
     return 0;
 }
