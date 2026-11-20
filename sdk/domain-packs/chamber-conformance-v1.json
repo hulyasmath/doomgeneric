@@ -1,0 +1,36 @@
+{
+  "format": "zeq-domain-pack-v1",
+  "id": "chamber-conformance",
+  "version": "1.0.0",
+  "simulation": "zeq-chamber-v1",
+  "provenance": {
+    "kind": "constructed-conformance",
+    "description": "Synthetic exact-integer chamber policy authored for cross-language conformance. Constants are software limits, not measured physical properties or calibrated scientific data.",
+    "source": "zeq-doomgeneric SDK reference specification",
+    "license": "project SDK license"
+  },
+  "units": {
+    "position": "Q10-length",
+    "velocity": "Q10-length/host-tic",
+    "command": "Q10-length/host-tic^2 velocity increment",
+    "time": "host-tic at 35 Hz"
+  },
+  "constants": {
+    "scale": 1024,
+    "position_limit": 1048576,
+    "speed_limit": 65536,
+    "max_particles": 16,
+    "max_tics": 2000000,
+    "host_rate": 35
+  },
+  "limits": {
+    "max_command_absolute": 127,
+    "max_reflections_per_axis_per_tic": 8
+  },
+  "evidence": [
+    "C99, JavaScript, and Python final canonical states compared byte-for-byte",
+    "deterministic seeded replay and repeated-run comparison",
+    "bounded position, saturated velocity, reflection, malformed-command, and short-buffer tests",
+    "constructed policy only; no physical-accuracy or calibrated-measurement claim"
+  ]
+}
