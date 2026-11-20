@@ -16,6 +16,7 @@
     <div class="top-actions">
       <span class="engine-state" id="engine-state"><i></i>BOOTING ENGINE</span>
       <button type="button" data-open="manual-dialog">MANUAL</button>
+      <button type="button" data-open="sdk-dialog">SDK</button>
       <button type="button" data-open="ledger-dialog">LEDGER <span id="ledger-count">0</span></button>
       <button type="button" data-open="settings-dialog">SETTINGS</button>
     </div>
@@ -126,6 +127,11 @@
         <p>New saves are ZEQC3 encrypted in a local Worker with scrypt and AES-256-GCM. Legacy raw saves still open. Export before clearing browser data.</p>
         <div><button type="button" id="save-button" disabled>SAVE CAPSULE</button><button type="button" id="export-save-button" disabled>EXPORT</button></div>
       </section>
+      <section class="sdk-module">
+        <span class="section-label">PORTABLE ZEQ SDK</span>
+        <p>Use exact time, deterministic mechanics, replay evidence, encrypted saves, and verified content in an existing game or simulation. Doom is the reference host—not a dependency.</p>
+        <button type="button" data-open="sdk-dialog">OPEN SDK + INTEGRATION GUIDE</button>
+      </section>
     </aside>
   </main>
 
@@ -157,6 +163,67 @@
   <div class="ledger-proof"><span>CHAIN TIP</span><code id="chain-tip">NO EVENTS</code><strong id="ledger-verdict">UNVERIFIED</strong></div>
   <ol class="ledger-list" id="ledger-list"><li>No engine events recorded yet.</li></ol>
   <div class="dialog-actions"><button type="button" id="verify-ledger">VERIFY CHAIN</button><button type="button" id="phase3-self-test">TEST PHASE 3</button><button type="button" id="phase5-self-test">TEST PHASE 5 SDK</button><button type="button" id="download-ledger">DOWNLOAD JSON</button><button type="button" id="download-input">INPUT V1</button><button class="primary-small" type="button" id="download-proof">SIGNED PROOF V2</button></div>
+</dialog>
+
+<dialog id="sdk-dialog">
+  <div class="dialog-head"><span>ZEQ SDK / PORTABLE INTEGRATION</span><button type="button" data-close aria-label="Close SDK guide">CLOSE</button></div>
+  <div class="sdk-guide">
+    <span class="kicker">ENGINE-NEUTRAL MODULES / REAL HOST ADAPTERS</span>
+    <h2>Bring the arithmetic.<br>Keep your engine.</h2>
+    <p class="sdk-lead">Zeq adds exact simulation time, deterministic numerical profiles, reproducible evidence, local save protection, and verified-content contracts around an existing host. Your engine remains authoritative; Doom objects, a 35 Hz tick, and this browser shell are not required.</p>
+    <nav class="sdk-links" aria-label="SDK source and documentation">
+      <a href="https://github.com/hulyasmath/zeq-doomgeneric" target="_blank" rel="noopener noreferrer">SDK REPOSITORY ↗</a>
+      <a href="https://github.com/hulyasmath/zeq-doomgeneric/blob/master/docs/zeq-sdk-integration-v1.md" target="_blank" rel="noopener noreferrer">INTEGRATION GUIDE ↗</a>
+      <a href="https://github.com/hulyasmath/zeq-doomgeneric/blob/master/sdk/README.md" target="_blank" rel="noopener noreferrer">MODULE API ↗</a>
+      <a href="https://github.com/hulyasmath/doomgeneric" target="_blank" rel="noopener noreferrer">DOOM REFERENCE HOST ↗</a>
+      <a href="https://github.com/hulyasmath/doomgeneric/blob/master/docs/zeq-doomgeneric-protocol-v1.md" target="_blank" rel="noopener noreferrer">WIRE + STATE PROTOCOL ↗</a>
+    </nav>
+
+    <div class="sdk-status-grid" aria-label="Implementation status">
+      <section><h3>IMPLEMENTED + TESTED</h3><p>Exact C/JavaScript/Python time vectors; Doom-unit fixed-point physics; real command replay and canonical hashes; signed local evidence; ZEQC3; signed manifests and sealed parcels; native two-process TCP rollback; bounded native/JavaScript/WASM pixel conformance.</p></section>
+      <section><h3>PARTIAL / PROOF OF CONCEPT</h3><p>Phase 5 currently loads one signed PWAD in the reference host. Ordered contract observation audits host-supplied events; it does not prove event truth or enforce gameplay.</p></section>
+      <section><h3>PENDING / SEPARATE PROFILES</h3><p>Browser multiplayer, general units and scientific solvers, broad plugins, and public matchmaking are not shipped. The tested pixel slice does not replace Doom’s renderer; texture validation and full visual integrity remain pending. Visual hashes never replace gameplay hashes.</p></section>
+    </div>
+
+    <section class="sdk-adopt">
+      <h3>INCORPORATE IT INTO ANOTHER GAME OR SIMULATION</h3>
+      <ol>
+        <li><b>Baseline the real host.</b> Identify its authoritative tick, complete command input, one-step transition, and every future-affecting state field. Run a fixed scenario twice before changing mechanics.</li>
+        <li><b>Adopt exact time first.</b> Compile <code>zeq_time.c</code> or load the JavaScript runtime with its generated table. Pass shared vectors, including overflow and negative cases. Keep it observational until replay is stable.</li>
+        <li><b>Version the run.</b> Bind source, content, settings, ruleset, tick rate, and initial state. Capture complete commands—not raw key events—and compare canonical hashes in an actual rerun.</li>
+        <li><b>Opt into more only as needed.</b> Define host units before using physics; keep Vanilla as a separate ruleset; add saves, evidence, content, or networking behind explicit profiles and capability gates.</li>
+      </ol>
+    </section>
+
+    <details class="sdk-snippet" open>
+      <summary>C99 / EXACT HOST-TIC CONVERSION</summary>
+      <p>Uses the portable C module. Invalid input or overflow is refused; wall time is never substituted.</p>
+      <pre><code id="sdk-c-snippet">#include "zeq_time.h"
+
+zeq_instant_t instant;
+if (!ZEQ_TimeFromTic(host_tick, host_tick_rate, &amp;instant)) {
+    /* Reject invalid input or overflow. */
+}
+/* instant.tick and instant.phase64 are exact integer results. */</code></pre>
+      <button type="button" data-copy-target="sdk-c-snippet" data-copy-name="C exact-time">COPY C SNIPPET</button>
+    </details>
+
+    <details class="sdk-snippet">
+      <summary>BROWSER JAVASCRIPT / SAME EXACT PROFILE</summary>
+      <p>Load the generated table before the runtime. The result exposes integer values as strings, including <code>zeqond</code> and <code>phase64</code>.</p>
+      <pre><code id="sdk-js-snippet">&lt;script src="sdk/zeq-time-table.js"&gt;&lt;/script&gt;
+&lt;script src="sdk/zeq-game-sdk.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+const instant = ZeqSDK.time.fromTic(hostTick, hostTickRate);
+console.assert(instant.format === "zeq-time-v1");
+// Use instant.zeqond and instant.phase64 in the host adapter.
+&lt;/script&gt;</code></pre>
+      <button type="button" data-copy-target="sdk-js-snippet" data-copy-name="JavaScript exact-time">COPY JAVASCRIPT SNIPPET</button>
+    </details>
+
+    <p class="fine-print sdk-boundary"><b>Evidence boundary:</b> integrity of a local event chain only; not proof of competitive legitimacy. A signature is not publisher trust, a descriptor helper is not multiplayer, and a contract refusal cannot undo an event the host already applied. Never place PINs, private keys, seeds, or private capsules in telemetry, replay, logs, or proof exports.</p>
+    <p class="sdk-copy-status" id="sdk-copy-status" role="status" aria-live="polite">SELECT A SNIPPET TO COPY ITS EXACT SOURCE.</p>
+  </div>
 </dialog>
 
 <dialog id="capsule-dialog">
