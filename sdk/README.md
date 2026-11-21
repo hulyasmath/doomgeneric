@@ -14,11 +14,12 @@ and consumed by the reference host through an explicit release identity.
 Read the [consolidated Phase 0–13 roadmap](../docs/zeq-roadmap-v1.md) and the
 [third-party integration guide](../docs/zeq-sdk-integration-v1.md) before adopting
 the SDK. Current time, replay, evidence, save, content, network-contract, and
-narrow event-contract observation APIs are documented there with their exact
-boundaries. Unit/dimensional analysis, scientific numerical methods, the general
-scenario/experiment/plugin system, and second-engine validation remain Phase
-9–13 work. The shipped `zeq-host-v1` observer is a proof of concept, not completion
-of those programs.
+event-contract observation APIs are documented there with their exact boundaries.
+Portable quantities, scientific numerics, experiments, signed application
+lifecycles, and a second non-Doom chamber reference now have source and local
+conformance suites. Read [Portable Profiles](../docs/zeq-portable-profiles-v1.md)
+and the [Conformance Matrix](../docs/zeq-conformance-matrix-v1.md) for their exact
+scope; local tests do not establish external-machine certification.
 
 The architecture is split cleanly in two:
 
@@ -53,7 +54,13 @@ local-first record of play. The bridge only *mirrors* telemetry outward.
 | `zeq-kernel.js`   | Node.js ≥18| Sidecar Runtime: append-only log, sessions, export, verifier |
 | `zeq-replay.js`   | Node.js ≥18| Real headless input, canonical checkpoints, replay and proof |
 | `zeq-mcp.js`      | Node.js ≥18| Local stdio MCP lifecycle, input, state, proof, verification |
-| `zeq-content.js`  | JS (UMD)   | Signed mods, explicit publisher trust, sealed expiring parcels |
+| `zeq-content.js`  | JS (UMD)   | Signed mods, bounded PK3, explicit publisher trust, sealed expiring parcels |
+| `zeq-quantities.js` | JS (UMD) | Exact rational units, dimensions, uncertainty, and equations |
+| `zeq-numerics.js` | JS (UMD)   | Budgeted non-authoritative scientific Float64 methods |
+| `zeq-experiments.js` | JS (UMD) | Scenarios, sweeps, contracts, packages, and reproduction |
+| `zeq-lifecycle.js` | JS (UMD) | Signed application ownership and default-deny capabilities |
+| `zeq-bot.js`      | JS (UMD)   | Deterministic outer 20 Hz command scheduler; host keeps its tick |
+| `reference/zeq-chamber.*` | C99/JS/Python | Non-Doom exact chamber simulation and canonical replay |
 | `zeq-net.js`      | JS (UMD)   | Canonical session descriptors and deterministic test-link impairment scheduling; not a transport |
 | `zeq_pixel.c/.h`  | C99 + i128 | Optional opaque raster, rational projection, occupancy, and canonical bytes |
 | `zeq-pixel.js`    | JS (UMD)   | BigInt-equivalent `zeq-pixel-v1` reference implementation |
@@ -126,8 +133,16 @@ python3 sdk/tests/test_security.py
 python3 sdk/tests/test_content.py
 node sdk/tests/test_security.js
 node sdk/tests/test_content.js
+node sdk/tests/test_content_packages.js
 node sdk/tests/test_net.js
 node sdk/tests/test_pixel.js
+node sdk/tests/test_pixel_sweep.js
+node sdk/tests/test_texture.js
+node sdk/tests/test_quantities.js
+node sdk/tests/test_numerics.js
+node sdk/tests/test_experiments.js
+node sdk/tests/test_lifecycle.js
+node sdk/tests/test_chamber.js
 node sdk/zq/tests/test_doom.js
 node sdk/tests/test_sidecar.js
 ```
@@ -245,11 +260,14 @@ node sdk/tests/test_content.js      # 12 SDK checks + exact Python interop
 ```
 
 The reference host browser ledger's **TEST PHASE 5 SDK** button runs the same 12-check suite.
-The separate reference host now implements and tests a narrow single-PWAD loader:
-SDK signature/trust/size/digest verification, an engine-owned copy, independent C
-SHA-256 and structural checks, and memory-backed lump reads from the same bytes.
-Multi-file load order and PK3 remain unsupported until their bounded mappings and
-readers exist. Parcel plaintext is never executed or automatically loaded.
+The reference host accepts one signed PWAD or a bounded `zeq-pk3-v1` package
+containing one to sixteen PWADs. Manifest array order—not ZIP entry order—is the
+load order. The SDK verifies signature, explicit trust, paths, sizes, and digests;
+the engine validates the whole batch before appending files in that order. PK3
+supports stored/deflated regular files and refuses traversal, absolute paths,
+duplicates/case ambiguity, nested archives, unsupported methods, malformed local
+or central records, CRC mismatches, and output/resource violations. Parcel
+plaintext is never executed or automatically loaded.
 
 ## Deterministic network contracts (Phase 6)
 
@@ -271,12 +289,14 @@ production public multiplayer remain unsupported.
 raster primitives without Doom types. They provide caller-owned per-pixel
 depth/owner/layer/claim state, deterministic arbitration, bounded rational
 projection, clipped spans/columns, and canonical frame/occupancy serialization.
-The fixed native-C/JavaScript/WASM fixture matches byte-for-byte and rejects
-same-key color conflicts, transparent writes, malformed geometry, overflow, and
-short buffers. Doom's normal renderer is unchanged. Host renderer integration,
-texture/flat validation, palette/colormap/fuzz/translucency behavior, and the
-complete visual-integrity profile remain pending. Visual hashes are separate
-from gameplay hashes and are not competitive-legitimacy evidence.
+The native-C/JavaScript/WASM sweep matches byte-for-byte at 1×1, 17×13, 127×63,
+and 320×200 and rejects same-key color conflicts, transparent writes, malformed
+geometry, overflow, and short buffers. The real Doom host now validates resource
+structures before original parser use and commits its final indexed frame through
+`zeq-doom-visual-v1`; native/browser canonical and visual bytes match at common
+checkpoints. Doom's renderer remains authoritative for palette, colormap, fuzz,
+translucency, HUD, and menus. Visual hashes remain separate from gameplay hashes
+and are not competitive-legitimacy evidence.
 
 ## Event-contract observation (narrow Phase 11 proof of concept)
 
@@ -325,6 +345,22 @@ unrestricted evaluator. An owner-provided external machine can be tested with
 the local suite. The real native and played-WASM reference-host adapters and
 their tests remain in `hulyasmath/doomgeneric`.
 
+## Portable science, experiments, lifecycle, and second host
+
+`zeq-quantity-v1` supplies exact bounded rational units, dimensional checks,
+interval uncertainty, and registered equations. `zeq-numerics-v1` supplies
+budgeted Float64 scientific solvers with explicit statuses; it is not gameplay
+arithmetic. `zeq-scenario-v1`/`zeq-experiment-v1` bind schedules, parameters,
+adapter identity, checkpoints, inputs, and numerical status into reproducible
+packages. `zeq-application-lifecycle-v1` provides signed ownership and
+least-privilege application records without executing or sandboxing code.
+
+The second `zeq-chamber-v1` reference simulation has independent C99,
+JavaScript, and Python adapters and imports no Doom objects. See
+[Portable Profiles](../docs/zeq-portable-profiles-v1.md) for API examples and
+[the support matrix](../docs/zeq-conformance-matrix-v1.md) for tested runtimes,
+deprecation rules, and remaining validation gaps.
+
 ## What a proof does and does not cover
 
 Every record carries this scope string, and it is repeated here deliberately:
@@ -369,10 +405,10 @@ working code:
 | 6 | Finite-interval impulses      | **Implemented (Doom Physics ruleset)** | Actual damage/explosion paths, X/Y/Z, 32 deterministic substeps |
 | 7 | Zeqond cooldowns              | **Implemented (Doom Physics ruleset)** | Exact ready tics enforced in `P_FireWeapon` |
 | 8 | Deterministic networking     | **Native reference + SDK contracts** | `zeq-net.js` descriptors/impairment tests; real two-process TCP rollback in the external Doom host; no browser/public multiplayer |
-| 9 | Signed WAD/PK3 loader         | **Single-PWAD reference milestone** | SDK verification plus tested external single-PWAD engine loader; multi-file/PK3 unsupported |
+| 9 | Signed WAD/PK3 loader         | **Implemented (scoped reference)** | Signed single-PWAD or bounded 1–16 PWAD PK3; manifest order, whole-batch validation, no code mods |
 |10 | `boxSeal`/`boxOpen` parcels   | **Implemented (SDK)** | Signed, encrypted, expiring, bounded, replay-protected parcels; plaintext is never executed |
 |11 | MCP agent bridge              | **Implemented (local stdio)** | Seven lifecycle/input/state/proof methods; opt-in controls and secret rejection |
-|12 | Headless 20 Hz bot            | **Roadmap** | Real 35 Hz headless replay is implemented; the separate 20 Hz bot scheduler is not |
+|12 | Headless 20 Hz bot            | **Implemented (reference)** | Deterministic outer scheduler emits ordinary commands to the real 35 Hz engine; replay matched |
 
 ## Conformance test
 

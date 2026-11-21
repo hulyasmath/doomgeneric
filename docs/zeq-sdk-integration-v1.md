@@ -1,7 +1,7 @@
 # Zeq SDK Third-Party Integration Guide v1
 
 Audience: developers adding Zeq to an existing game or simulation
-Status: shipped APIs and the narrow Phase 11 contract-observation proof of concept are identified below; other Phase 9–13 capabilities remain design targets
+Status: shipped APIs and locally tested Phase 9–13 portable profiles are identified below; external-machine certification remains a separate gate
 
 ## 1. What the SDK is
 
@@ -21,6 +21,9 @@ Current portable surfaces include:
 - ordered event-to-contract observation: `sdk/zq/zeq-host.js`;
 - external contract-machine HTTP(S) access and an optional browser panel: `sdk/zq/zeq-browser.js` and `sdk/zq/zeq-panel.js`;
 - a scoped Doom contract-mapping example: `sdk/zq/examples/doom/doom-zeq.js`;
+- exact units/equations, scientific numerics, experiments, and application ownership: `sdk/zeq-quantities.js`, `sdk/zeq-numerics.js`, `sdk/zeq-experiments.js`, and `sdk/zeq-lifecycle.js`;
+- deterministic outer automation: `sdk/zeq-bot.js`;
+- a second non-Doom C99/JavaScript/Python reference simulation: `sdk/reference/zeq-chamber.*`;
 - Doom replay/orchestration and local MCP: `sdk/zeq-replay.js` and `sdk/zeq-mcp.js`.
 
 `sdk/zeq_plugin.h` is explicitly `0.1.1-legacy`. Its 1287/1000 carrier, 0.777 s Zeqond, and 24 permille pulse are compatibility approximations. New exact integrations must use `zeq-time-v1`, not this legacy header.
@@ -34,7 +37,10 @@ Current portable surfaces include:
 | `zeq-arcade-legacy-v1` | Compatibility with the early arcade layer | Approximate legacy behavior; never mix with exact vectors |
 | Vanilla host profile | Unmodified host mechanics | SDK may observe/replay without changing gameplay |
 | `zeq-host-v1` observation | Declared host events mapped to external contract decisions | Ordered, asynchronous audit only; the host remains authoritative and refusals do not undo events |
-| Scientific numerical profile | Future Phase 9–10 analysis | Error-controlled, budgeted computation; not automatically bit-authoritative across hosts |
+| `zeq-quantity-v1` | Exact units, dimensions, equations, uncertainty | Bounded BigInt rationals; exact arithmetic does not prove measurement accuracy |
+| `scientific-float64-nonauthoritative` | Phase 10 scientific analysis | Error-controlled, budgeted Float64; not bit-authoritative across hosts |
+| `zeq-experiment-v1` | Scenarios, sweeps, and reproduction | Source-identified host adapters; actual rerun required for `match` |
+| `zeq-application-lifecycle-v1` | Scoped application ownership | Signed local evidence; no execution or sandbox guarantee |
 | Display/cosmetic profile | Future visual carrier or presentation | Must not feed authoritative state unless a separate ruleset explicitly does so |
 
 Record the selected profile in every run descriptor. Never infer it from a UI label or assume that “Zeq enabled” uniquely identifies behavior.
@@ -148,7 +154,7 @@ A non-Doom host must not copy these calls and assume its coordinates are compati
 1. use the algorithm only after a formally specified unit/scale mapping and new profile name; or
 2. implement the host-specific integrator against shared exact primitives and publish its own vectors.
 
-The future unit/dimensional layer is Phase 9. Until it ships, integrators must document their dimensions and scales directly. Do not label arbitrary host values “SI” or “Zeqond units” without a conversion definition.
+`zeq-quantity-v1` now supplies the portable unit/dimensional layer. Integrators must still declare their host dimensions and scales explicitly and define a conversion before using it. Do not label arbitrary host values “SI” or “Zeqond units” without that definition.
 
 `ZEQ_CooldownReadyTic` returns the first ready host tic for an exact rational Zeqond duration. Store the scheduled ready tic in canonical state if future behavior depends on it.
 
@@ -238,7 +244,7 @@ Encrypted save support is not a canonical replay substitute. Replays require aut
 
 A valid signature is not publisher trust. A trusted manifest is not permission to execute native code. The host must separately decide which content types are allowed and how they are sandboxed.
 
-The Doom reference host now implements and tests a narrow single-PWAD profile: one verified WAD per `doomgeneric-zeq-v1` manifest, no dependencies, active-ruleset compatibility, an engine-owned byte copy, independent C SHA-256 verification, structural WAD bounds checks, and memory-backed reads from those same bytes. Multi-file mods and PK3 remain unsupported. This adapter is Doom-specific, not part of the portable SDK; a third-party host must implement and test its own verified-byte handoff and content semantics rather than assume Doom's loader transfers to another engine.
+The Doom reference host accepts one PWAD or a `zeq-pk3-v1` package containing one to sixteen PWADs per `doomgeneric-zeq-v1` manifest, with no dependencies and active-ruleset compatibility. Manifest order defines load order. The SDK verifies signature, explicit trust, paths, sizes, and SHA-256; the host performs whole-batch C validation before appending each engine-owned immutable copy to Doom's ordinary memory-backed lump directory. This adapter is Doom-specific, not a universal content semantic; a third-party host must implement and test its own verified-byte handoff.
 
 ### 10.2 Sealed parcels
 
@@ -270,11 +276,11 @@ The Doom reference profile demonstrates these requirements with two native C eng
 
 `sdk/zeq_pixel.c/.h` and `sdk/zeq-pixel.js` provide the bounded `zeq-pixel-v1` conformance slice. A host supplies pixel storage and receives deterministic opaque-write arbitration, per-pixel depth/owner/layer/claim occupancy, checked rational subpixel projection, clipped spans/columns, and canonical frame/occupancy bytes. The API uses no Doom objects and does not enter authoritative gameplay unless a separately versioned host profile explicitly does so.
 
-The current test gate compiles one fixed scene as native C and WASM and reproduces it with JavaScript BigInt. All three targets must match every serialized byte, result status, and separate SHA-256 frame/occupancy commitment. This establishes arithmetic and serialization agreement for that fixture only. It does not integrate or replace Doom's renderer, validate Doom texture lumps, support translucent/fuzz drawing, or prove arbitrary frames visually correct. See `docs/zeq-doomgeneric-protocol-v1.md` section 20 for the byte contract and exact limits.
+The sweep gate compares native C, JavaScript BigInt, and WASM at 1×1, 17×13, 127×63, and 320×200, including every serialized byte, result status, repeat run, and separate SHA-256 frame/occupancy commitment. The real Doom adapter additionally validates resource structures and commits final indexed frames after Doom's palette, colormap, fuzz, translucency, HUD, and menus. It does not replace Doom's renderer or make visual hashes into gameplay or competitive-legitimacy evidence. See `docs/zeq-doomgeneric-protocol-v1.md` section 20 for the byte contract and exact limits.
 
 ## 13. Ordered event-contract observation
 
-The narrow `zeq-host-v1` surface lets an existing host describe semantic events and send them to an external contract-capable machine without moving simulation authority into that machine. It is a proof of concept within Phase 11, not the complete scenario, experiment, resource-budget, cancellation, plugin, or reproduction system.
+The narrow `zeq-host-v1` surface lets an existing host describe semantic events and send them to an external contract-capable machine without moving simulation authority into that machine. It remains an observation proof of concept within Phase 11. The separate `zeq-experiments.js` module supplies the scoped scenario, experiment, budget, cancellation, and reproduction layer; neither surface is a plugin execution system.
 
 A host description contains:
 
@@ -309,15 +315,15 @@ For another host:
 - return structured errors and never leak secrets;
 - record injected commands so the session can be replayed.
 
-A future 20 Hz outer bot scheduler must feed ordinary host commands without changing Doom’s 35 Hz simulation. Similar adapters must preserve their host’s tick authority.
+`zeq-bot-schedule-v1` supplies a deterministic 20 Hz outer scheduler that feeds ordinary commands to Doom's unchanged 35 Hz simulation. Seeds, decision budgets, pause/stop neutralization, command bounds, and replayable outputs are explicit. Similar adapters must preserve their host’s tick authority; a scheduler must never create a second physics path.
 
-## 15. Future units and numerical modules
+## 15. Units, numerical modules, experiments, and ownership
 
-Phases 9–10 will add safe equations, dimensional analysis, SI/Zeqond conversion, uncertainty, intervals, ODE integration, quadrature, roots, linear algebra, conditioning, and sensitivity. These are not yet shipped portable APIs.
+Phases 9–12 now ship portable source and local conformance suites. `zeq-quantities.js` provides safe equations, dimensional analysis, exact conversion, and intervals. `zeq-numerics.js` provides ODE integration, quadrature, roots, sums, linear algebra, conditioning, and sensitivity under `scientific-float64-nonauthoritative`. `zeq-experiments.js` provides scenarios, bounded conditions, sweeps, cancellation, and reproduction packages. `zeq-lifecycle.js` provides signed application ownership and default-deny host capabilities. Exact APIs and schemas are in `zeq-portable-profiles-v1.md`.
 
 Design constraints for adopters:
 
-1. Declare dimensions `(M, L, T, Θ)` and units at the interface.
+1. Declare all seven dimensional grades (`time`, `length`, `mass`, `current`, `temperature`, `amount`, `luminous`) and units at the interface.
 2. Reject dimensional mismatch and unknown conversions; never guess.
 3. Distinguish exact constants, measured values, approximations, and uncertain intervals.
 4. Return residuals, error estimates, iteration counts, accepted/rejected steps, and termination status where applicable.
@@ -326,6 +332,8 @@ Design constraints for adopters:
 7. Keep adaptive scientific floating-point computation out of authoritative cross-platform gameplay unless a separate deterministic numerical profile and vectors explicitly support it.
 
 Exact arithmetic does not make a false physical model true. Error-controlled computation does not prove that input measurements are accurate.
+
+For a minimal second-host example, `sdk/reference/zeq-chamber.*` defines its own tick, complete command, authoritative state, canonical bytes, and replay in C99, JavaScript, and Python without importing Doom. Its synthetic domain pack declares provenance, units, constants, limits, and validation evidence. Use it as an adapter boundary example, not as a calibrated physical model or a universal game loop.
 
 ## 16. Minimal adoption sequence
 
@@ -384,13 +392,13 @@ Property and fuzz tests should include random integer boundaries, phase wrap, lo
 - Exact time alone does not make the whole engine deterministic.
 - A deterministic replay or matching network hashes do not prove fair competition.
 - A network descriptor helper or test impairment scheduler is not a transport, rollback engine, or authenticated multiplayer service.
-- A contract decision or linked observation record is not proof that the host event was truthful, that gameplay was enforced, or that the full Phase 11 system exists.
+- A contract decision or linked observation record is not proof that the host event was truthful or that gameplay was enforced; the observation adapter is distinct from the portable experiment layer.
 - A signature does not establish publisher trust.
 - A signed plugin is not sandboxed code.
 - An encrypted parcel is not executable content permission.
 - A local JSONL ledger is not physical WORM storage.
 - A second scheduler does not justify changing the simulation tick rate.
 - Doom’s fixed-point physics API is not yet a general dimensional physics engine.
-- Future framework capabilities are not current portable SDK features.
+- A locally tested profile is not external-machine certification; unlisted framework capabilities are not current SDK features.
 
 The integration target is a small, explicit, testable adapter around an engine that already exists. The host keeps authority; Zeq supplies versioned arithmetic, reproducibility, and evidence contracts.
