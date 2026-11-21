@@ -169,7 +169,7 @@ Not claimed by Phase 4 alone: deterministic multiplayer, rollback, a completed 2
 
 ### Phase 5 — Signed content and sealed parcels
 
-**Status: partial. The SDK and single signed-PWAD engine-loading milestones are implemented and tested; multi-file/PK3 loading and remaining hardening are pending.**
+**Status: implemented and locally tested for the scoped signed-content profile. Single PWAD and bounded multi-PWAD PK3 loading, publisher trust, sealed parcels, adversarial limits, and engine evidence are covered. Arbitrary code mods, dependencies, and automatic parcel loading remain unsupported.**
 
 Implemented SDK deliverables:
 
@@ -184,7 +184,9 @@ Implemented SDK deliverables:
 
 Implemented and tested reference-host deliverables:
 
-- one signed PWAD per accepted `doomgeneric-zeq-v1` manifest, no dependencies, and compatibility with the active ruleset;
+- one signed PWAD or a `zeq-pk3-v1` package containing one to sixteen PWADs per accepted `doomgeneric-zeq-v1` manifest, no dependencies, and compatibility with the active ruleset;
+- manifest-array load order independent of ZIP entry order, stored/deflated regular-file support, bounded actual output, CRC and local/central consistency checks, and refusal of traversal, absolute paths, duplicate/case ambiguity, nested archives, unsupported methods, and malformed or oversized content;
+- whole-batch C validation before the first engine append, with explicit evidence rather than a rollback claim if a later allocation/engine failure were to occur;
 - SDK verification of the canonical signature, explicit publisher trust, file size, and SHA-256 before the engine call;
 - an engine-owned byte copy, independent C SHA-256 verification, and structural bounds checks for the PWAD header, directory, and every lump range;
 - memory-backed Doom lump reads from the same owned bytes, without reopening a mutable pathname;
@@ -192,14 +194,14 @@ Implemented and tested reference-host deliverables:
 - browser integration tests covering a real marker-lump load/read-back and fail-closed wrong-trust, modified-byte, incompatible-ruleset, malformed-WAD, direct C digest-mismatch, and duplicate-load cases;
 - native replay/MCP, browser/native canonical replay, gameplay, capsule-restore, desktop, and mobile regressions passing with zero browser console or HTTP errors.
 
-Remaining gates:
+Closeout evidence:
 
-1. Add a bounded PK3 reader; reject traversal, absolute paths, duplicate ambiguity, decompression bombs, and unsupported content.
-2. Extend the verified-byte handoff to explicitly specified multi-file mods and their load order.
-3. Complete malformed-manifest, resource-limit, adversarial WAD, and lifetime hardening beyond the current integration vectors.
-4. Retain the SDK parcel gates for replayed parcels, expired parcels, wrong recipients, authenticated-data tampering, and bounded inboxes.
+1. Portable stored/deflated PK3 and ordered-signature/digest tests pass, including 1,000 deterministic malformed-input cases and resource bounds.
+2. The real browser loads two marker PWADs in manifest order and reads back both exact payloads.
+3. A signed batch whose second PWAD is malformed is refused during prevalidation without installing the valid first PWAD.
+4. Existing wrong-trust, changed-byte, incompatible-ruleset, malformed-WAD, direct-C digest, duplicate, and signed-evidence regressions still pass with zero console/HTTP errors.
 
-Not claimed: multi-file or PK3 loading, arbitrary native/code mods, automatic content execution, or parcel auto-loading. Signed content is session-local; signature validity is not publisher trust or a safety guarantee.
+Not claimed: arbitrary native/code mods, dependency resolution, automatic content execution, parcel auto-loading, transactional rollback after an unexpected engine append failure, or general PK3 content semantics. Signed content is session-local; signature validity is not publisher trust or a safety guarantee.
 
 ### Phase 6 — Deterministic networking and rollback
 
@@ -238,7 +240,7 @@ The native acceptance gate is therefore met without implying production Internet
 
 ### Phase 7 — Deterministic rasterization and visual integrity
 
-**Status: partial. The portable `zeq-pixel-v1` conformance slice is implemented and tested; Doom renderer integration, texture-system validation, and the complete visual-integrity profile remain pending.**
+**Status: implemented and locally tested for `zeq-pixel-v1`, `zeq-texture-validation-v1`, and the scoped `zeq-doom-visual-v1` host profile. Doom remains the display renderer; visual evidence is not gameplay proof.**
 
 Implemented and tested deliverables:
 
@@ -247,31 +249,28 @@ Implemented and tested deliverables:
 - strict opaque write gating, deterministic depth/layer/owner arbitration, claim-mask merging, and same-key color-conflict refusal;
 - checked bounded-rational 1/256-subpixel projection and half-open clipped column/span stepping;
 - canonical little-endian frame (`ZEQFRM1`) and occupancy (`ZEQOCC1`) byte streams with independent SHA-256 commitments;
-- one fixed 9×7 scene producing identical bytes in native C99/i128, JavaScript BigInt, and WASM, with stable repeated runs and negative coverage for opacity, bounds, seams, reversed/degenerate ranges, behind-camera projection, overflow, and short buffers.
+- native C99/i128, JavaScript BigInt, and WASM equality at 1×1, 17×13, 127×63, and 320×200, including occupancy, status counts, clipping, ties, conflicts, repeated runs, and explicit time/storage budgets;
+- checked structural PNAMES/TEXTURE1/TEXTURE2/PATCH/flat/PLAYPAL/COLORMAP validation before original Doom parser use, including zero-length namespace-marker handling;
+- a four-frame real-host ring containing actual canonical frame/occupancy streams and independent visual hashes, with renderer, content, palette, resolution, and settings identity;
+- strict opaque occupancy commits of Doom's final indexed frame only after palette, colormap, fuzz, translucency, HUD, and menu processing; no rendering-to-gameplay writeback;
+- real native visual capture, malformed-WAD refusal, clean WASM rebuild, and browser/native equality for canonical state and visual checkpoints, including complete 256016-byte frame and 1024016-byte occupancy streams at tic 105.
 
-Remaining gates:
-
-1. Integrate the strict path into an actual host renderer without changing existing gameplay rulesets.
-2. Add structural PATCH/PNAMES/TEXTURE1/TEXTURE2/flat validation before use.
-3. Define and bound palette, colormap, fuzz, and translucency behavior; the current slice accepts opaque RGBA8 only.
-4. Add resolution sweeps, larger geometric/adversarial fixtures, performance/resource budgets, and full native/WASM host-frame comparisons.
-5. Version any visual evidence with renderer, resolution, palette, content, and settings identity.
-
-Visual hashes are separate from gameplay hashes. This milestone does not replace Doom's renderer or prove visual integrity for ordinary Doom frames, and visual integrity is not proof of competitive legitimacy.
+Visual hashes are separate from gameplay hashes. The strict path does not replace Doom's renderer or prove arbitrary content correct, and visual integrity is not proof of competitive legitimacy.
 
 ### Phase 8 — Engine, bot, build, and repository closeout
 
-**Status: pending.**
+**Status: the full local regression matrix, build-generated release manifests, clean-checkout native/browser builds, and promoted-preview tests have passed. Executable/browser source files are remotely fetch-verified through `49ff720a5147e012896fde5b23bed642348d9862`; complete-tree, SDK-only, and final audit closeout are recorded independently.**
 
-Required work:
+Implemented or locally tested work:
 
-- complete Phase 5 loading hardening and remaining Phase 6/7 closeout items;
-- a separate outer automation scheduler, proposed at 20 Hz, feeding ordinary commands while Doom remains 35 Hz;
-- bot resource limits, deterministic seeds, stop/pause behavior, and replayable inputs;
-- pinned and verified Emscripten toolchain with clean native/WASM rebuilds;
-- synchronized source, tests, documentation, and release manifests;
-- removal of stale transfer/build artifacts through ordinary reviewed file changes;
-- final negative, fuzz, interoperability, and performance-budget reports.
+- Phase 5 bounded PK3/multi-file hardening and Phase 7 real-host closeout have passed focused gates;
+- `zeq-bot-schedule-v1` is a separate 20 Hz outer scheduler feeding ordinary commands while Doom remains 35 Hz;
+- deterministic seeds, decision limits, stop/pause neutral commands, bounded fields, and real-engine replay are tested;
+- `build-web.sh` requires Emscripten 3.1.64 and cleans by default; `build-headless.sh` also cleans and reports compiler identity;
+- a 2,000-tic impaired TCP soak has matched confirmed hashes under observed rollback/resimulation and impairment;
+- source and documentation are synchronized in the working release candidate; the complete local matrix and clean-checkout builds have passed; executable/browser remote blobs were fetched and compared through commit `49ff720a5147e012896fde5b23bed642348d9862`, with complete-tree acceptance performed after documentation publication;
+- the browser build recreates `dist/` to exclude stale artifacts, and both build scripts emit `zeq-release-manifest-v1` artifact inventories;
+- negative, fuzz, interoperability, and host-specific performance observations are reported in the [release evidence](zeq-release-evidence-v1.md), conformance matrix, and test output.
 
 Acceptance gate: clean checkout to tested native and browser artifacts with documented tool versions, plus remote blob/tree verification. A preview from older WASM must not be represented as a clean build of newer C source.
 
@@ -281,77 +280,76 @@ These phases expose relevant capabilities from the broader Zeq framework without
 
 ### Phase 9 — Arithmetic, units, equations, and measurement integrity
 
-**Status: proposed extension; not implemented as the portable SDK layer.**
+**Status: implemented and locally tested for `zeq-quantity-v1`; no physical-accuracy or calibrated-measurement claim follows.**
 
-Deliverables:
+Implemented deliverables:
 
-- safe expression parsing with no `eval`, arbitrary calls, or unbounded grammar;
-- dimensional grades and dimensional-consistency checks;
-- exact SI/Zeqond-unit conversion where a conversion is defined;
-- registered constants and equations with source/version identity;
-- measurement uncertainty, intervals, significant bounds, and explicit refusal of invalid operations;
-- shared vectors for rounding, unit conversion, singular/ill-posed equations, and hostile expressions.
+- bounded normalized exact rationals and seven dimensional grades with consistency checks;
+- explicit SI/Zeqond-unit conversion and registered constants/equations with source/version identity;
+- conservative uncertainty intervals, invalid-operation refusal, and singular negative-power handling;
+- a bounded expression parser with no `eval`, calls, properties, assignments, or unbounded grammar;
+- shared vectors for conversion, rounding, uncertainty containment, dimensions, singular equations, and hostile expressions.
 
-Acceptance gate: third-party code can evaluate a bounded equation, prove its dimensions, convert declared units, and receive a structured result or refusal. No claim that a measurement is physically accurate merely because its arithmetic is exact.
+Acceptance evidence: third-party JavaScript can evaluate a bounded equation, check its dimensions, convert declared units, and receive an exact result or structured exception. The three-Zeqond conversion test produces exactly `2331002331/1000000 ms`. Exact arithmetic does not establish measurement accuracy or validate a physical model.
 
 ### Phase 10 — Error-controlled numerical computation
 
-**Status: proposed extension; not implemented as the portable SDK layer.**
+**Status: implemented and locally tested for `zeq-numerics-v1` under `scientific-float64-nonauthoritative`; bitwise cross-platform Float64 agreement is not claimed.**
 
-Deliverables:
+Implemented deliverables:
 
 - finite-difference weights and convergence diagnostics;
-- adaptive ODE integration, quadrature, sums, and root solving;
-- linear systems, eigenvalues, conditioning, and sensitivity reports;
-- tolerances, iteration/time/memory budgets, accepted/rejected steps, residual/error estimates, and divergence reporting;
-- deterministic scheduling and result schemas for experiment packages.
+- adaptive Dormand–Prince RK45, quadrature, compensated/adaptive sums, and bracketed roots;
+- partial-pivoting linear systems, symmetric eigensystems, conditioning, and sensitivity diagnostics;
+- tolerances, operation/step/time budgets, accepted/rejected steps, residuals, and explicitly named error estimates;
+- structured `ok`, `invalid-input`, `refused`, `singular`, `diverged`, and `budget-exceeded` results.
 
-Acceptance gate: reference problems include known analytical solutions and failure cases. Results report numerical status rather than silently returning a best-effort number. Scientific floating-point profiles remain distinct from fixed-point authoritative gameplay.
+Acceptance evidence: analytical reference problems, failure/budget paths, repeatability, and 100 seeded linear systems pass locally. Residual- and condition-derived fields are diagnostics, not unconditional error bounds. Scientific floating-point results remain outside bit-authoritative gameplay unless a host defines a separate numerical contract.
 
 ### Phase 11 — Contracts, scenarios, and reproducible experiments
 
-**Status: partial proof of concept. The reviewed PR #3 host/event-contract observer is implemented and locally tested; the complete scenario, experiment, resource-budget, cancellation, and reproduction layer remains pending.**
+**Status: implemented and locally tested for the scoped portable experiment layer and the PR #3 observer; external-machine reproduction remains open.**
 
-Deliverables:
+Implemented deliverables:
 
-- bounded condition evaluation and explicit capabilities;
-- versioned contracts, deterministic schedules, scenario definitions, seeds, and parameter sweeps;
-- experiment packages containing source/settings identities, inputs, outputs, numerical status, and reproduction instructions;
-- deterministic ordering, resource budgets, cancellation, and failure records.
+- bounded condition ASTs, explicit capabilities, and host-authoritative proposed contract actions;
+- versioned scenarios, deterministic schedules, canonical safe-integer parameters, and lexicographically ordered sweeps;
+- experiment packages binding source/settings identity, inputs, checkpoints, outputs, numerical status, and reproduction instructions;
+- deterministic ordering, resource budgets, cancellation, failure records, package validation, and actual-rerun reproduction.
 
-Acceptance gate: another machine can validate a package, rerun it in a compatible host, and obtain the specified deterministic result or an explained numerical comparison. Contracts do not bypass engine authority or grant ambient access.
+Acceptance evidence: portable tests cover sweeps, cancellation, failure records, capability denial, package tamper/refusal, and reproduction; the non-Doom chamber package reproduces with `match`. The PR #3 host/event-contract observer remains asynchronous observation rather than gameplay enforcement. A package does not prove host honesty, and another machine must run the source-identified adapter before cross-machine compatibility is claimed.
 
 ### Phase 12 — Scoped applications, plugins, and ownership
 
-**Status: proposed extension; not implemented as the portable SDK layer.**
+**Status: implemented and locally tested for signed metadata, scoped host capabilities, and ownership lifecycle; code execution, sandboxing, and authenticated pairing are not supplied.**
 
-Deliverables:
+Implemented deliverables:
 
-- scoped application/plugin identities and explicit capability grants;
-- signed install/enable/disable/update/revoke lifecycle records;
-- ownership transfer, attestations, and optional authenticated local pairing;
-- least-privilege host adapters and clear separation of content verification from execution permission;
-- revocation and compatibility behavior that does not depend on hidden cloud state.
+- scoped application/plugin descriptors and explicit default-deny capability grants;
+- signed install/enable/disable/update/transfer/attest/revoke records with semantic transition audits;
+- ownership transfer, independent asynchronous content verification, and terminal revocation;
+- least-privilege host adapters that check authorization on every exposed call;
+- compatibility and lifecycle state without hidden cloud dependency.
 
-Acceptance gate: a host can deny every capability by default, grant a minimal set, and audit every lifecycle transition. Signing a plugin does not make its code safe; native code still requires an appropriate sandbox/process boundary.
+Acceptance evidence: local tests cover all lifecycle actions, correctly signed invalid transitions, tamper, ownership, default denial, independent content checks, and explicit unsafe-native enablement. No lifecycle method executes plugin code. Signing, attestations, or a sandbox label do not make native code safe; an actual process/sandbox boundary remains the host's responsibility.
 
 ### Phase 13 — Multi-engine conformance and domain packs
 
-**Status: proposed extension; not implemented.**
+**Status: implemented and locally tested for the second-reference-host milestone and support matrix; arbitrary third-party engine compatibility and independent external reproduction are not claimed.**
 
-Deliverables:
+Implemented deliverables:
 
-- stable C, JavaScript, and Python adapter contracts;
-- a second, non-Doom reference simulation with authoritative state and replay;
-- cross-language vectors, property tests, fuzzing, and differential testing;
-- optional validated domain packs for units, constants, equations, or simulation policies;
-- compatibility/support matrix and deprecation policy.
+- independent C99, JavaScript, and Python `zeq-chamber-v1` reference adapters with canonical state and replay;
+- a materially different non-Doom Q10 bounded particle chamber with no Doom imports, renderer, wall clock, floating point, or host randomness;
+- cross-language differential tests, 1,000 deterministic property/replay runs, malformed-input coverage, and experiment reproduction;
+- a versioned synthetic `zeq-domain-pack-v1` with explicit provenance, units, constants, limits, and evidence;
+- a tested-runtime/support matrix and explicit versioning/deprecation policy.
 
-Acceptance gate: at least two materially different hosts pass the same portable core vectors without importing Doom objects. Any domain pack identifies its data provenance, version, limits, and validation evidence.
+Acceptance evidence: 33 C/JavaScript cases match exact final canonical bytes, Python final state/checkpoints match, and the chamber experiment package reproduces. Doom and chamber demonstrate the portable conformance approach on materially different hosts; this is not proof that every engine or every portable vector has been integrated unchanged. Domain-pack values are constructed conformance data, not measured physical properties.
 
 ## 7. Dependency order and release gates
 
-The milestone order remains Phase 5, Phase 6, Phase 7, Phase 8, followed by Phases 9–13. The narrow Phase 6 native reference gate and its one-host non-loopback LAN case are met while the explicitly listed Phase 5 multi-file/PK3 and Phase 6 production-hardening work remains open. The explicitly requested PR #3 integration adds only a narrow Phase 11 observation proof of concept; it does not open or complete the general Phase 11 program. The portable Phase 7 pixel-conformance slice is implemented, but renderer/texture integration and the remaining visual-integrity gates are still pending. Documentation may be prepared ahead of code, but future APIs remain labeled pending/proposed.
+The implementation order was Phase 5, Phase 6, Phase 7, Phase 8 hardening, followed by Phases 9–13. The scoped signed-PWAD/PK3 loader, native two-process rollback profile, real-host visual profile, portable quantity/numerical/experiment/lifecycle modules, and second non-Doom reference simulation now have local implementation and focused test evidence. Phase 8's complete regression, clean-checkout builds, release manifests, stale-artifact review, and promoted-preview gates have passed. Preview version `b6533c9` contains the tested browser artifacts from executable source snapshot `ed06c5465a9aabb90afee74a5be1f13b6f75bb96`; saving that preview is not public website publication. Executable/browser source delivery has been fetch-verified through `49ff720a5147e012896fde5b23bed642348d9862`, while final complete-tree, SDK-only, and audit acceptance remain separate evidence steps. Browser networking, production Internet security, physical two-machine validation, external-machine experiment reproduction, plugin execution/sandboxing, and broader third-party host support remain outside the implemented profiles.
 
 Every phase requires:
 
@@ -399,6 +397,8 @@ Each added module must justify its state, schema, dependencies, resource cost, a
 
 ## 10. Current honest position
 
-The project has a working real-Doom reference foundation through Phase 4, a tested Phase 5 signed-content/sealed-parcel SDK milestone, a tested single-PWAD reference-host loader, a tested Phase 6 native two-process networking/rollback profile with matching canonical hashes under direct and impaired TCP transport, and a locally tested PR #3 contract-observation proof of concept. Multi-file/PK3 engine content loading, browser networking, production network security/hardening, strict rendering integrity, Phase 8 closeout, external-machine contract validation, and the full Phases 9–13 programs remain unfinished. Repository restructuring and clean WASM toolchain verification are release work, not completed game features.
+The project has a working real-Doom reference foundation through Phase 4; scoped Phase 5 signed single-PWAD and bounded multi-PWAD PK3 loading; a Phase 6 native two-process networking/rollback profile with matching canonical hashes under direct, impaired, and 2,000-tic soak runs; Phase 7 pixel, resource-validation, and real-host visual profiles; and locally tested Phase 9–13 portable quantity, numerical, experiment, lifecycle, second-host, and domain-pack modules. The PR #3 contract observer remains a narrow asynchronous observation profile within the broader experiment layer.
+
+Phase 8's local closeout gates and promoted-preview tests have passed; executable/browser source delivery is fetch-verified through `49ff720a5147e012896fde5b23bed642348d9862`, with final complete-tree, SDK-only, and audit acceptance recorded separately. Preview version `b6533c9` was saved and retested from the exact browser artifacts built at executable source snapshot `ed06c5465a9aabb90afee74a5be1f13b6f75bb96`; it is a preview, not public website publication, and was not rebuilt from later transport-normalization or documentation commits. Browser networking, production network security, physical two-machine Wi-Fi validation, external-machine reproduction, plugin execution/sandboxing, physical mobile certification, arbitrary third-party engine compatibility, and unconditional mathematical/physical correctness are not claimed. The playable game is a substantial reference demonstration of the framework's explicit arithmetic and host-integration boundaries, not proof that every Doom mechanic or real-world model is Zeq-converted or physically validated.
 
 This roadmap is the controlling scope document for subsequent implementation. More detailed protocol documents define exact bytes and APIs; if a status statement conflicts with tested code, the status must be corrected rather than the claim inflated.
