@@ -1,8 +1,8 @@
 # Zeq × doomgeneric release evidence v1
 
-Date: 2026-11-20
+Date: 2026-11-21
 
-Status: **local release-candidate evidence; remote delivery and preview promotion are separate gates**
+Status: **local build, regression, and promoted-preview gates passed; executable/browser source delivery fetch-verified through `49ff720a5147e012896fde5b23bed642348d9862`; final complete-tree, SDK-only, and audit acceptance recorded separately**
 
 This report records the scoped evidence for the real doomgeneric C/WebAssembly reference host and the portable SDK. It is not an external certification, a universal determinism claim, a physical-accuracy claim, or proof of competitive legitimacy.
 
@@ -16,6 +16,10 @@ This report records the scoped evidence for the real doomgeneric C/WebAssembly r
 - A manifest inventories bytes; it does not by itself prove correctness, provenance, or remote delivery.
 
 A fresh clone of code commit `40aee6fa0512e4ce7f46070291f1247af4b0f95d` built both targets and passed manifest validation plus the complete browser suite. The checkout downloaded and SHA-256-verified the shareware WAD; the already verified Freepats dependency was supplied as an ignored build dependency rather than treated as source. Browser WASM SHA-256 was `829cb4123f0fcb048538a8e24de9561e46e71d037d5ebcdc55cd38ec9db46edf`, matching the populated-tree build exactly. The first fresh-checkout attempt had exposed an incorrect WAD archive strip level; extraction now uses an isolated temporary directory, locates the actual `doom1.wad`, and verifies its pinned SHA-256 before compilation. Final artifact identities always come from the manifest generated for the actual delivered source commit.
+
+The final executable source snapshot is `ed06c5465a9aabb90afee74a5be1f13b6f75bb96`. Populated-tree and fresh-checkout browser builds from that snapshot both produced WASM SHA-256 `d8704d9b499025eeee01479b1ae6784209adcfd9c83add7ad5b323e789e039ca`; the earlier `829cb412…` identity is historical and was not forced into the final manifests. The populated native engine SHA-256 was `8c0490e52dbb110e129073c53473aa4366837ad64e98ded01d98ca3f5597dff6`, while the fresh-checkout native engine was `4057f89b2be4315d761e92f1f4674251e9ca4405132c50253a314a458400fd0c`. Those native binaries differ because debug information contains absolute build paths; path-independent native binary reproducibility is not claimed.
+
+Preview version `b6533c9` was promoted from the exact tested `dist/` bytes for `ed06c546…` and passed the promoted-preview gameplay/replay checks with zero console errors and zero failed HTTP responses. Saving this preview is not public website publication. Subsequent remote transport normalized whitespace in `doomgeneric/d_main.c` and `doomgeneric/r_data.c` and removed one standalone comment marker in `r_data.c`; no executable statement changed. Those normalized sources and later documentation commits do not retroactively change the executable snapshot, manifests, WASM identity, or preview provenance, and the preview was not rebuilt from them.
 
 ## 2. Regression matrix
 

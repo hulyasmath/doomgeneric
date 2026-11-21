@@ -33,7 +33,10 @@ engine file into both projects.
 Phases 0–7 have implemented and locally tested reference profiles, including
 signed single-PWAD and bounded multi-PWAD PK3 content, native two-client TCP
 rollback, pixel/resource validation, and real-host visual commitments. Phase 8
-release closeout is in progress. The portable Phase 9–13 quantity, scientific
+local build/regression gates and promoted-preview tests have passed; executable
+and browser source delivery is fetch-verified through remote commit
+`49ff720a5147e012896fde5b23bed642348d9862`. Final repository-tree and audit
+closeout is tracked separately. The portable Phase 9–13 quantity, scientific
 numerical, experiment, lifecycle, second-host chamber, and domain-pack modules
 are implemented and locally tested within their documented scopes. Browser
 networking, production Internet security, physical two-machine validation,
