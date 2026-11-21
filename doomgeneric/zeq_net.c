@@ -611,7 +611,7 @@ int ZEQ_NetConnect(void)
     int i;
     (void)corrupt_at;
     if (!net_enabled) return 1;
-    if (!engine_build) engine_build = "doomgeneric-zeq-phase6-v1";
+    if (!engine_build) engine_build = "doomgeneric-zeq-phase6-v2";
     if (strlen(engine_build) > 96 || strpbrk(engine_build, "\\\"\r\n"))
     {
         net_fail("engine-build-syntax");
@@ -755,6 +755,7 @@ static void write_thinker_order(void)
     int special_ordinal = 0;
     for (th = thinkercap.next; th != &thinkercap; th = th->next)
     {
+        if (!ZEQ_ThinkerArchived(th)) continue;
         if (th->function.acp1 == (actionf_p1)P_MobjThinker)
             write32_value(0x20000000 | ++mobj_ordinal);
         else
@@ -776,6 +777,7 @@ static int read_thinker_order(void)
     int ok = 0;
     for (th = thinkercap.next; th != &thinkercap; th = th->next)
     {
+        if (!ZEQ_ThinkerArchived(th)) continue;
         total++;
         if (th->function.acp1 == (actionf_p1)P_MobjThinker) mobj_count++;
         else special_count++;
@@ -787,6 +789,7 @@ static int read_thinker_order(void)
     mobj_count = special_count = 0;
     for (th = thinkercap.next; th != &thinkercap; th = th->next)
     {
+        if (!ZEQ_ThinkerArchived(th)) continue;
         if (th->function.acp1 == (actionf_p1)P_MobjThinker) mobjs[mobj_count++] = th;
         else specials[special_count++] = th;
     }
