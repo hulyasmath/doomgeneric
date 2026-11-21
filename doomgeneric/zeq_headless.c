@@ -193,15 +193,36 @@ int ZEQ_HeadlessBuildTiccmd(ticcmd_t *cmd, int maketic)
     return 1;
 }
 
+// Keep symbolic thinker identities in the same namespace as Doom's save
+// serializer. Pending-removal specials remain linked until the next thinker
+// pass, but P_ArchiveSpecials deliberately does not write them.
+int ZEQ_ThinkerArchived(thinker_t *th)
+{
+    int i;
+    if (th->function.acp1 == (actionf_p1)P_MobjThinker
+        || th->function.acp1 == (actionf_p1)T_MoveCeiling
+        || th->function.acp1 == (actionf_p1)T_VerticalDoor
+        || th->function.acp1 == (actionf_p1)T_MoveFloor
+        || th->function.acp1 == (actionf_p1)T_PlatRaise
+        || th->function.acp1 == (actionf_p1)T_LightFlash
+        || th->function.acp1 == (actionf_p1)T_StrobeFlash
+        || th->function.acp1 == (actionf_p1)T_Glow) return 1;
+    if (th->function.acv != (actionf_v)NULL) return 0;
+    for (i = 0; i < MAXCEILINGS; i++)
+        if (activeceilings[i] == (ceiling_t *)th) return 1;
+    return 0;
+}
+
 int32_t ZEQ_CanonicalPointer(void *pointer)
 {
     thinker_t *th;
     uintptr_t address = (uintptr_t)pointer;
     int32_t ordinal = 1;
     if (!pointer) return 0;
-    for (th = thinkercap.next; th != &thinkercap; th = th->next, ordinal++)
+    for (th = thinkercap.next; th != &thinkercap; th = th->next)
     {
-        if (pointer != (void *)th) continue;
+        if (!ZEQ_ThinkerArchived(th)) continue;
+        if (pointer != (void *)th) { ordinal++; continue; }
         if (th->function.acp1 == (actionf_p1)P_MobjThinker)
             return 0x20000000 | (int32_t)((mobj_t *)th)->zeq_id;
         return 0x10000000 | ordinal;

@@ -14,6 +14,7 @@ void ZEQ_HeadlessFlushVisual(void);
 int ZEQ_HeadlessStateHash(int completed_tics, char output[65]);
 int ZEQ_HeadlessShouldStop(void);
 int ZEQ_HeadlessRealtime(void);
+int ZEQ_ThinkerArchived(thinker_t *th);
 int32_t ZEQ_CanonicalPointer(void *pointer);
 int32_t ZEQ_CanonicalAction(actionf_p1 action);
 void ZEQ_CanonicalSetInterval(int32_t interval);
