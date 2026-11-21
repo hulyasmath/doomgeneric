@@ -170,19 +170,21 @@
   <div class="sdk-guide">
     <span class="kicker">ENGINE-NEUTRAL MODULES / REAL HOST ADAPTERS</span>
     <h2>Bring the arithmetic.<br>Keep your engine.</h2>
-    <p class="sdk-lead">Zeq adds exact simulation time, deterministic numerical profiles, reproducible evidence, local save protection, and verified-content contracts around an existing host. Your engine remains authoritative; Doom objects, a 35 Hz tick, and this browser shell are not required.</p>
+    <p class="sdk-lead">Zeq adds exact simulation time, explicit scientific numerical profiles, reproducible evidence, local save protection, and verified-content contracts around an existing host. Your engine remains authoritative; Doom objects, a 35 Hz tick, and this browser shell are not required.</p>
     <nav class="sdk-links" aria-label="SDK source and documentation">
       <a href="https://github.com/hulyasmath/zeq-doomgeneric" target="_blank" rel="noopener noreferrer">SDK REPOSITORY ↗</a>
       <a href="https://github.com/hulyasmath/zeq-doomgeneric/blob/master/docs/zeq-sdk-integration-v1.md" target="_blank" rel="noopener noreferrer">INTEGRATION GUIDE ↗</a>
       <a href="https://github.com/hulyasmath/zeq-doomgeneric/blob/master/sdk/README.md" target="_blank" rel="noopener noreferrer">MODULE API ↗</a>
       <a href="https://github.com/hulyasmath/doomgeneric" target="_blank" rel="noopener noreferrer">DOOM REFERENCE HOST ↗</a>
       <a href="https://github.com/hulyasmath/doomgeneric/blob/master/docs/zeq-doomgeneric-protocol-v1.md" target="_blank" rel="noopener noreferrer">WIRE + STATE PROTOCOL ↗</a>
+      <a href="https://github.com/hulyasmath/zeq-doomgeneric/blob/master/docs/zeq-portable-profiles-v1.md" target="_blank" rel="noopener noreferrer">PORTABLE PROFILES ↗</a>
+      <a href="https://github.com/hulyasmath/zeq-doomgeneric/blob/master/docs/zeq-conformance-matrix-v1.md" target="_blank" rel="noopener noreferrer">TESTED MATRIX + LIMITS ↗</a>
     </nav>
 
     <div class="sdk-status-grid" aria-label="Implementation status">
-      <section><h3>IMPLEMENTED + TESTED</h3><p>Exact C/JavaScript/Python time vectors; Doom-unit fixed-point physics; real command replay and canonical hashes; signed local evidence; ZEQC3; signed manifests and sealed parcels; native two-process TCP rollback; bounded native/JavaScript/WASM pixel conformance.</p></section>
-      <section><h3>PARTIAL / PROOF OF CONCEPT</h3><p>Phase 5 currently loads one signed PWAD in the reference host. Ordered contract observation audits host-supplied events; it does not prove event truth or enforce gameplay.</p></section>
-      <section><h3>PENDING / SEPARATE PROFILES</h3><p>Browser multiplayer, general units and scientific solvers, broad plugins, and public matchmaking are not shipped. The tested pixel slice does not replace Doom’s renderer; texture validation and full visual integrity remain pending. Visual hashes never replace gameplay hashes.</p></section>
+      <section><h3>IMPLEMENTED + LOCALLY TESTED</h3><p>Exact C/JavaScript/Python time vectors; real Doom physics/replay; signed evidence and ZEQC3; signed PWAD/PK3 content and sealed parcels; native TCP rollback; pixel, texture, and real-host visual profiles; exact units, scientific solvers, experiments, lifecycle, and the non-Doom chamber.</p></section>
+      <section><h3>SCOPED / NONAUTHORITATIVE</h3><p>Contract observation audits host-supplied events without proving truth or enforcing gameplay. Float64 solvers are scientific diagnostics, not bit-authoritative gameplay. Application records do not execute or sandbox plugin code.</p></section>
+      <section><h3>PENDING / SEPARATE PROFILES</h3><p>Browser multiplayer, public matchmaking, production transport security, physical two-machine and mobile validation, external-machine reproduction, and arbitrary third-party engine certification are not shipped. Doom remains the display renderer; visual hashes never replace gameplay hashes.</p></section>
     </div>
 
     <section class="sdk-adopt">
@@ -221,6 +223,16 @@ console.assert(instant.format === "zeq-time-v1");
       <button type="button" data-copy-target="sdk-js-snippet" data-copy-name="JavaScript exact-time">COPY JAVASCRIPT SNIPPET</button>
     </details>
 
+    <details class="sdk-snippet">
+      <summary>EXACT UNITS / BOUNDED RATIONAL CONVERSION</summary>
+      <p>Uses <code>zeq-quantity-v1</code>. Dimensions and normalized rational bounds are checked; exact conversion does not establish physical measurement accuracy.</p>
+      <pre><code id="sdk-quantity-snippet">const Q = require("./sdk/zeq-quantities.js");
+const threeZeqonds = Q.fromUnit(Q.rational(3n), "zeqond");
+const milliseconds = Q.convert(threeZeqonds, "ms");
+// Exact value: 2331002331n / 1000000n milliseconds.</code></pre>
+      <button type="button" data-copy-target="sdk-quantity-snippet" data-copy-name="exact-unit">COPY UNIT SNIPPET</button>
+    </details>
+
     <p class="fine-print sdk-boundary"><b>Evidence boundary:</b> integrity of a local event chain only; not proof of competitive legitimacy. A signature is not publisher trust, a descriptor helper is not multiplayer, and a contract refusal cannot undo an event the host already applied. Never place PINs, private keys, seeds, or private capsules in telemetry, replay, logs, or proof exports.</p>
     <p class="sdk-copy-status" id="sdk-copy-status" role="status" aria-live="polite">SELECT A SNIPPET TO COPY ITS EXACT SOURCE.</p>
   </div>
@@ -249,12 +261,12 @@ console.assert(instant.format === "zeq-time-v1");
   <label class="setting-row"><span><b>LOCAL SIDECAR LINK</b><small>Mirror telemetry to a local zeq-kernel (ws://127.0.0.1:7770). Optional; the game is fully playable without it. <output id="sidecar-status">offline</output></small></span><input type="checkbox" id="sidecar-toggle"></label>
   <label class="setting-slider"><span>MOUSE SENSITIVITY <output id="sensitivity-value">1.0×</output></span><input type="range" id="sensitivity" min="0.4" max="2" step="0.1" value="1"></label>
   <form id="signed-mod-form" class="signed-mod-form">
-    <h3>SIGNED PWAD / PHASE 5</h3>
-    <p>Load one signed PWAD into the real engine. A valid signature is not authorization: enter the publisher key ID you explicitly trust. No code is executed and parcel plaintext is never loaded.</p>
+    <h3>SIGNED PWAD / PK3 · PHASE 5</h3>
+    <p>Load one signed PWAD or a bounded PK3 containing one to sixteen PWADs. Manifest order is load order. A valid signature is not authorization: enter the publisher key ID you explicitly trust. No code is executed and parcel plaintext is never loaded.</p>
     <label><span>SIGNED MANIFEST</span><input id="mod-manifest" type="file" accept=".json,application/json" required></label>
-    <label><span>VERIFIED PWAD</span><input id="mod-wad" type="file" accept=".wad,application/octet-stream" required></label>
+    <label><span>VERIFIED PWAD OR PK3</span><input id="mod-wad" type="file" accept=".wad,.pk3,application/octet-stream,application/zip" required></label>
     <label><span>TRUSTED PUBLISHER KEY ID</span><input id="mod-trusted-key" type="text" inputmode="latin" autocomplete="off" spellcheck="false" minlength="64" maxlength="64" pattern="[0-9a-f]{64}" placeholder="64 lowercase hex characters" required></label>
-    <div class="dialog-actions"><button class="primary-small" id="load-signed-mod" type="submit" disabled>VERIFY &amp; LOAD PWAD</button></div>
+    <div class="dialog-actions"><button class="primary-small" id="load-signed-mod" type="submit" disabled>VERIFY &amp; LOAD CONTENT</button></div>
     <p id="mod-load-status" class="signed-mod-status" role="status" aria-live="polite">NO SIGNED PWAD LOAD ATTEMPT</p>
   </form>
   <p class="fine-print">Settings and the current save capsule are stored only in this browser. Signed content is session-local. The shareware WAD is unmodified id Software game data.</p>
