@@ -2,6 +2,7 @@
 
 const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
+const zlib = require("node:zlib");
 let chromium;
 try { ({ chromium } = require("playwright")); }
 catch (_) { ({ chromium } = require("/home/kimi/.npm-global/lib/node_modules/playwright")); }
@@ -33,16 +34,42 @@ function testSigner() {
   };
 }
 
-function markerWad() {
-  const bytes = Buffer.alloc(12 + PAYLOAD.length + 16);
+function markerWad(marker = MARKER, payload = PAYLOAD) {
+  const bytes = Buffer.alloc(12 + payload.length + 16);
   bytes.write("PWAD", 0, "ascii");
   bytes.writeUInt32LE(1, 4);
-  bytes.writeUInt32LE(12 + PAYLOAD.length, 8);
-  Buffer.from(PAYLOAD).copy(bytes, 12);
-  bytes.writeUInt32LE(12, 12 + PAYLOAD.length);
-  bytes.writeUInt32LE(PAYLOAD.length, 16 + PAYLOAD.length);
-  bytes.write(MARKER, 20 + PAYLOAD.length, "ascii");
+  bytes.writeUInt32LE(12 + payload.length, 8);
+  Buffer.from(payload).copy(bytes, 12);
+  bytes.writeUInt32LE(12, 12 + payload.length);
+  bytes.writeUInt32LE(payload.length, 16 + payload.length);
+  bytes.write(marker, 20 + payload.length, "ascii");
   return new Uint8Array(bytes);
+}
+
+function makePk3(entries) {
+  const table = Uint32Array.from({ length: 256 }, (_, n) => {
+    let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0;
+  });
+  const crc32 = bytes => { let c = 0xffffffff; for (const byte of bytes) c = table[(c ^ byte) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+  const locals = [], central = []; let offset = 0;
+  for (const entry of entries) {
+    const path = Buffer.from(entry.path), plain = Buffer.from(entry.bytes);
+    const compressed = entry.deflate ? zlib.deflateRawSync(plain) : plain;
+    const method = entry.deflate ? 8 : 0, crc = crc32(plain);
+    const local = Buffer.alloc(30); local.writeUInt32LE(0x04034b50); local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(method, 8); local.writeUInt32LE(crc, 14); local.writeUInt32LE(compressed.length, 18);
+    local.writeUInt32LE(plain.length, 22); local.writeUInt16LE(path.length, 26);
+    const record = Buffer.concat([local, path, compressed]);
+    const center = Buffer.alloc(46); center.writeUInt32LE(0x02014b50); center.writeUInt16LE(20, 4);
+    center.writeUInt16LE(20, 6); center.writeUInt16LE(method, 10); center.writeUInt32LE(crc, 16);
+    center.writeUInt32LE(compressed.length, 20); center.writeUInt32LE(plain.length, 24);
+    center.writeUInt16LE(path.length, 28); center.writeUInt32LE(offset, 42);
+    locals.push(record); central.push(Buffer.concat([center, path])); offset += record.length;
+  }
+  const body = Buffer.concat(locals), directory = Buffer.concat(central), end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50); end.writeUInt16LE(entries.length, 8); end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(directory.length, 12); end.writeUInt32LE(body.length, 16);
+  return new Uint8Array(Buffer.concat([body, directory, end]));
 }
 
 async function signWad(signer, wad, modId, rulesets = ["zeq-physics-v1"]) {
@@ -153,6 +180,39 @@ async function diagnosticLoad(page, manifest, wad, keyId) {
   assert.equal(duplicate.evidence.engineLumpCount, originalEngineLumps + 1);
   assert.deepEqual((await page.evaluate((name) => ZeqDiagnostics.contentLump(name), MARKER)).data, [...PAYLOAD]);
 
+  // A malformed later PWAD must be found during whole-batch validation, before
+  // the valid first PWAD is handed to Doom. This is not an engine rollback claim.
+  const pk3a = markerWad("ZEQ5P3A", new TextEncoder().encode("ORDER-A"));
+  const pk3b = markerWad("ZEQ5P3B", new TextEncoder().encode("ORDER-B"));
+  const malformedB = new Uint8Array(pk3b); new DataView(malformedB.buffer).setUint32(8, 0xfffffff0, true);
+  const invalidBatchManifest = await Content.signMod({ signer, modId: "phase5-pk3-invalid-batch", modVersion: "1.0.0",
+    name: "Invalid batch", engineApi: "doomgeneric-zeq-v1", rulesets: ["zeq-physics-v1"],
+    files: [{ path: "mods/a.wad", bytes: pk3a }, { path: "mods/b.wad", bytes: malformedB }] });
+  const invalidBatch = await page.evaluate(async ({ manifest, bytes, keyId }) =>
+    ZeqDiagnostics.loadSignedMod(manifest, new Uint8Array(bytes), keyId, { pk3: true }),
+    { manifest: invalidBatchManifest, bytes: [...makePk3([{ path: "mods/b.wad", bytes: malformedB, deflate: true }, { path: "mods/a.wad", bytes: pk3a }])], keyId: signer.anchor.key_id });
+  assert.equal(invalidBatch.ok, false);
+  assert.equal(invalidBatch.evidence.stage, "engine-validation");
+  assert.equal(invalidBatch.evidence.fileIndex, 1);
+  assert.equal(invalidBatch.evidence.engineLumpCount, originalEngineLumps + 1);
+  assert.equal(await page.evaluate(() => ZeqDiagnostics.contentLumpPresent("ZEQ5P3A")), -1);
+
+  const pk3Manifest = await Content.signMod({ signer, modId: "phase5-pk3-valid", modVersion: "1.0.0",
+    name: "Ordered PK3", engineApi: "doomgeneric-zeq-v1", rulesets: ["zeq-physics-v1"],
+    files: [{ path: "mods/a.wad", bytes: pk3a }, { path: "mods/b.wad", bytes: pk3b }] });
+  const pk3 = makePk3([{ path: "mods/b.wad", bytes: pk3b, deflate: true }, { path: "mods/a.wad", bytes: pk3a }]);
+  await page.locator("#mod-manifest").setInputFiles({ name: "signed-pk3.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(pk3Manifest)) });
+  await page.locator("#mod-wad").setInputFiles({ name: "ordered.pk3", mimeType: "application/zip", buffer: Buffer.from(pk3) });
+  await page.locator("#load-signed-mod").click();
+  await page.waitForFunction(() => document.getElementById("mod-load-status").textContent.startsWith("LOADED"), null, { timeout: 30000 });
+  const pk3Loaded = await page.evaluate(() => ZeqDiagnostics.contentEvidence());
+  assert.equal(pk3Loaded.packageFormat, "zeq-pk3-v1");
+  assert.equal(pk3Loaded.fileCount, 2);
+  assert.deepEqual(pk3Loaded.loadOrder.map(file => file.path), ["mods/a.wad", "mods/b.wad"]);
+  assert.equal(pk3Loaded.engineLumpCount, originalEngineLumps + 3);
+  assert.deepEqual((await page.evaluate(() => ZeqDiagnostics.contentLump("ZEQ5P3A"))).data, [...new TextEncoder().encode("ORDER-A")]);
+  assert.deepEqual((await page.evaluate(() => ZeqDiagnostics.contentLump("ZEQ5P3B"))).data, [...new TextEncoder().encode("ORDER-B")]);
+
   await page.locator("#settings-dialog [data-close]").click();
   await page.locator('[data-open="ledger-dialog"]').click();
   await page.locator("#verify-ledger").click();
@@ -176,8 +236,9 @@ async function diagnosticLoad(page, manifest, wad, keyId) {
   console.log(JSON.stringify({
     ok: true, signedManifest: manifest.format, publisherTrust: loaded.publisherTrust,
     contentSha256: loaded.contentSha256, markerLump: MARKER, payloadReadBack: true,
-    engineLumpsBefore: originalEngineLumps, engineLumpsAfter: loaded.engineLumpCount,
-    refused: ["wrong-trust", "modified-bytes", "incompatible-ruleset", "malformed-wad", "c-digest-mismatch", "duplicate"],
+    engineLumpsBefore: originalEngineLumps, engineLumpsAfter: pk3Loaded.engineLumpCount,
+    pk3LoadOrder: pk3Loaded.loadOrder.map(file => file.path), wholeBatchPrevalidation: true,
+    refused: ["wrong-trust", "modified-bytes", "incompatible-ruleset", "malformed-wad", "c-digest-mismatch", "duplicate", "malformed-later-pwad-without-partial-load"],
     proofEvents: contentEvents.length, replay: verdict.replay,
     consoleErrors: errors.length, badResponses: badResponses.length
   }, null, 2));

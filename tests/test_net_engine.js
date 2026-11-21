@@ -6,6 +6,7 @@ const os = require("node:os");
 const path = require("node:path");
 const net = require("node:net");
 const { spawn } = require("node:child_process");
+const { performance } = require("node:perf_hooks");
 const ZeqNet = require("../sdk/zeq-net.js");
 const { encodeCommands } = require("../sdk/zeq-replay.js");
 
@@ -57,7 +58,10 @@ function launch(player, port, input, extraEnv = {}) {
   let stdout = "", stderr = "";
   child.stdout.setEncoding("utf8");
   child.stderr.setEncoding("utf8");
-  child.stdout.on("data", (chunk) => { stdout += chunk; });
+  child.stdout.on("data", (chunk) => {
+    stdout += chunk;
+    if (Buffer.byteLength(stdout) > 64 * 1024 * 1024) child.kill("SIGKILL");
+  });
   child.stderr.on("data", (chunk) => { stderr = (stderr + chunk).slice(-65536); });
   child.stdin.end(input);
   const done = new Promise((resolve) => {
@@ -176,6 +180,7 @@ async function impairedProxy(targetPort, listenPort) {
 }
 
 async function runPair(options = {}) {
+  const started = performance.now();
   const maxTic = options.maxTic || 140;
   const enginePort = nextPort++;
   const clientPort = nextPort++;
@@ -186,13 +191,16 @@ async function runPair(options = {}) {
   const timer = setTimeout(() => {
     console.error("pair timeout", proxy ? { ...proxy.stats, starved: proxy.starved().slice(0, 30) } : { direct: true });
     host.child.kill("SIGKILL"); client.child.kill("SIGKILL");
-  }, 90000);
+  }, Number(process.env.ZEQ_NET_TIMEOUT_MS || 90000));
   const results = await Promise.all([host.done, client.done]);
   clearTimeout(timer);
   if (proxy) await proxy.close();
   fs.writeFileSync("/tmp/zeq-net-host.log", results[0].stdout + "\n" + results[0].stderr);
   fs.writeFileSync("/tmp/zeq-net-client.log", results[1].stdout + "\n" + results[1].stderr);
-  return { host: results[0], client: results[1], proxy };
+  return { host: results[0], client: results[1], proxy,
+    performance: { wallMs: Number((performance.now() - started).toFixed(3)), maxTic,
+      outputBytes: Buffer.byteLength(results[0].stdout) + Buffer.byteLength(results[1].stdout),
+      timeoutMs: Number(process.env.ZEQ_NET_TIMEOUT_MS || 90000), harnessOutputLimitBytes: 64 * 1024 * 1024 } };
 }
 
 async function rawRefusal(kind, expectedReason) {
@@ -291,7 +299,7 @@ function assertNoErrors(run) {
   const defaultListener = direct.host.records.find((record) => record.kind === "net-listen");
   assert.equal(defaultListener.bind, "127.0.0.1");
   assert.equal(defaultListener.bind_scope, "loopback-default");
-  report.direct = { tics: 140, matchingHashes: true, listener: defaultListener.bind_scope };
+  report.direct = { tics: 140, matchingHashes: true, listener: defaultListener.bind_scope, performance: direct.performance };
   }
 
   if (!process.env.ZEQ_NET_CASE || process.env.ZEQ_NET_CASE === "lan") {
@@ -336,7 +344,7 @@ function assertNoErrors(run) {
   assert.ok(summaries.every((summary) => summary && summary.confirmed_tics === impairedTics));
   assert.ok(summaries.some((summary) => summary.rollbacks > 0 && summary.mispredictions > 0 && summary.resimulated_tics > 0));
   assert.ok([...impaired.host.records, ...impaired.client.records].some((record) => record.kind === "net-rollback"));
-  report.impaired = { ...impaired.proxy.stats, summaries, matchingHashes: true };
+  report.impaired = { ...impaired.proxy.stats, summaries, matchingHashes: true, performance: impaired.performance };
   }
 
   if (!process.env.ZEQ_NET_CASE || process.env.ZEQ_NET_CASE === "refusal") {
