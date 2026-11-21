@@ -7,6 +7,7 @@
 "use strict";
 
 const nodeCrypto = typeof module !== "undefined" && module.exports ? require("node:crypto") : null;
+const nodeZlib = nodeCrypto ? require("node:zlib") : null;
 const security = nodeCrypto ? require("./zeq-security.js") : global.ZeqSecurity;
 const encoder = new TextEncoder();
 const MAX_MANIFEST_BYTES = 1024 * 1024;
@@ -174,6 +175,146 @@ async function verifyModFiles(manifest, content, options = {}) {
     }
     return { ok: true, authorized: true, key_id: verdict.key_id, files: manifest.files.map((file) => file.path) };
   } catch (error) { return failure(error.message); }
+}
+
+/* Bounded PK3/ZIP reader. Only stored and deflated regular files are accepted.
+ * Central-directory sizes are policy limits, not permission to allocate without
+ * checking actual inflater output. No path is ever opened on the host filesystem.
+ */
+const CRC_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    table[n] = c >>> 0;
+  }
+  return table;
+})();
+function crc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) crc = CRC_TABLE[(crc ^ byte) & 255] ^ (crc >>> 8);
+  return (crc ^ 0xffffffff) >>> 0;
+}
+function zipView(bytes) {
+  if (!(bytes instanceof Uint8Array)) throw new TypeError("PK3 content must be Uint8Array");
+  return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+}
+function zipString(bytes) {
+  return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+}
+async function inflateBounded(compressed, expected, maximum) {
+  if (nodeZlib) {
+    const output = nodeZlib.inflateRawSync(compressed, {
+      maxOutputLength: Math.min(maximum, expected) + 1,
+      finishFlush: nodeZlib.constants.Z_SYNC_FLUSH
+    });
+    if (output.length !== expected) throw new RangeError("PK3 uncompressed size mismatch");
+    return new Uint8Array(output);
+  }
+  if (typeof DecompressionStream === "undefined") throw new TypeError("deflated PK3 requires DecompressionStream");
+  const stream = new Blob([compressed]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+  const reader = stream.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > expected || total > maximum) throw new RangeError("PK3 output exceeds declared or configured bounds");
+      chunks.push(value);
+    }
+  } catch (error) {
+    await reader.cancel().catch(() => {});
+    throw error;
+  }
+  if (total !== expected) throw new RangeError("PK3 uncompressed size mismatch");
+  const output = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) { output.set(chunk, offset); offset += chunk.byteLength; }
+  return output;
+}
+async function readPk3(packageBytes, options = {}) {
+  try {
+    const bytes = copyBytes(packageBytes);
+    const maxFiles = options.maxFiles ?? MAX_MOD_FILES;
+    const maxFileBytes = options.maxFileBytes ?? MAX_MOD_FILE_BYTES;
+    const maxTotalBytes = options.maxTotalBytes ?? MAX_MOD_TOTAL_BYTES;
+    if (!Number.isInteger(maxFiles) || maxFiles < 1 || maxFiles > MAX_MOD_FILES
+      || !Number.isInteger(maxFileBytes) || maxFileBytes < 0 || maxFileBytes > MAX_MOD_FILE_BYTES
+      || !Number.isInteger(maxTotalBytes) || maxTotalBytes < 0 || maxTotalBytes > MAX_MOD_TOTAL_BYTES) return failure("invalid PK3 limits");
+    if (bytes.length < 22 || bytes.length > MAX_MOD_TOTAL_BYTES) return failure("invalid PK3 package size");
+    const view = zipView(bytes);
+    let eocd = -1;
+    for (let offset = bytes.length - 22; offset >= Math.max(0, bytes.length - 65557); offset--) {
+      if (view.getUint32(offset, true) === 0x06054b50) { eocd = offset; break; }
+    }
+    if (eocd < 0 || eocd + 22 + view.getUint16(eocd + 20, true) !== bytes.length) return failure("invalid or ambiguous PK3 end record");
+    if (view.getUint16(eocd + 4, true) !== 0 || view.getUint16(eocd + 6, true) !== 0) return failure("multi-disk PK3 refused");
+    const count = view.getUint16(eocd + 10, true);
+    if (count !== view.getUint16(eocd + 8, true) || count < 1 || count > maxFiles) return failure("PK3 entry count outside bounds");
+    const directorySize = view.getUint32(eocd + 12, true);
+    const directoryOffset = view.getUint32(eocd + 16, true);
+    if (directoryOffset > eocd || directorySize > eocd - directoryOffset
+      || directoryOffset + directorySize !== eocd) return failure("PK3 central directory outside bounds");
+    const records = [];
+    const paths = new Set(), folded = new Set();
+    let cursor = directoryOffset, total = 0;
+    for (let index = 0; index < count; index++) {
+      if (cursor > eocd - 46 || view.getUint32(cursor, true) !== 0x02014b50) return failure("malformed PK3 central entry");
+      const flags = view.getUint16(cursor + 8, true), method = view.getUint16(cursor + 10, true);
+      const crc = view.getUint32(cursor + 16, true), compressedSize = view.getUint32(cursor + 20, true);
+      const uncompressedSize = view.getUint32(cursor + 24, true);
+      const nameLength = view.getUint16(cursor + 28, true), extraLength = view.getUint16(cursor + 30, true);
+      const commentLength = view.getUint16(cursor + 32, true), disk = view.getUint16(cursor + 34, true);
+      const external = view.getUint32(cursor + 38, true), localOffset = view.getUint32(cursor + 42, true);
+      const next = cursor + 46 + nameLength + extraLength + commentLength;
+      if (next > eocd || disk !== 0 || compressedSize === 0xffffffff || uncompressedSize === 0xffffffff
+        || localOffset === 0xffffffff || (flags & ~0x0808) !== 0 || (method !== 0 && method !== 8)
+        || (external & 0x10) !== 0 || uncompressedSize > maxFileBytes) return failure("unsupported or oversized PK3 entry");
+      const path = zipString(bytes.subarray(cursor + 46, cursor + 46 + nameLength));
+      const fold = path.toLowerCase();
+      const fileType = (external >>> 16) & 0xf000;
+      if (!validPath(path) || paths.has(path) || folded.has(fold) || /\.(?:pk3|zip)$/i.test(path)
+        || (fileType !== 0 && fileType !== 0x8000)) return failure("unsafe, nested, non-regular, duplicate, or ambiguous PK3 path");
+      paths.add(path); folded.add(fold);
+      total += uncompressedSize;
+      if (total > maxTotalBytes) return failure("PK3 uncompressed content exceeds total bound");
+      records.push({ path, flags, method, crc, compressedSize, uncompressedSize, localOffset });
+      cursor = next;
+    }
+    if (cursor !== eocd) return failure("PK3 central directory length mismatch");
+    const files = new Map();
+    for (const record of records) {
+      const p = record.localOffset;
+      if (p > directoryOffset - 30 || view.getUint32(p, true) !== 0x04034b50) return failure("PK3 local header outside data region");
+      const flags = view.getUint16(p + 6, true), method = view.getUint16(p + 8, true);
+      const nameLength = view.getUint16(p + 26, true), extraLength = view.getUint16(p + 28, true);
+      const start = p + 30 + nameLength + extraLength;
+      if (flags !== record.flags || method !== record.method || start > directoryOffset
+        || record.compressedSize > directoryOffset - start
+        || zipString(bytes.subarray(p + 30, p + 30 + nameLength)) !== record.path) return failure("PK3 local/central entry mismatch");
+      if (record.method === 0 && record.compressedSize !== record.uncompressedSize) return failure("stored PK3 size mismatch");
+      const compressed = bytes.subarray(start, start + record.compressedSize);
+      const output = record.method === 0 ? new Uint8Array(compressed)
+        : await inflateBounded(compressed, record.uncompressedSize, maxFileBytes);
+      if (crc32(output) !== record.crc) return failure("PK3 CRC-32 mismatch");
+      files.set(record.path, output);
+    }
+    return { ok: true, format: "zeq-pk3-v1", files, paths: records.map(record => record.path), totalBytes: total };
+  } catch (error) { return failure(error.message); }
+}
+
+async function verifyModPackage(manifest, packageBytes, options = {}) {
+  const unpacked = await readPk3(packageBytes, options);
+  if (!unpacked.ok) return unpacked;
+  const content = unpacked.paths.map(path => ({ path, bytes: unpacked.files.get(path) }));
+  const verdict = await verifyModFiles(manifest, content, options);
+  if (!verdict.ok) return verdict;
+  const byPath = new Map(content.map(entry => [entry.path, entry.bytes]));
+  return { ...verdict, format: "zeq-pk3-v1", loadOrder: manifest.files.map(file => file.path),
+    orderedFiles: manifest.files.map((file, index) => ({ path: file.path, sha256: file.sha256,
+      bytes: byPath.get(file.path), order: index })) };
 }
 
 async function deriveParcelKey(shared, ephRaw, recipientRaw) {
@@ -387,7 +528,7 @@ const api = {
   MAX_MANIFEST_BYTES, MAX_MOD_FILES, MAX_MOD_FILE_BYTES, MAX_MOD_TOTAL_BYTES,
   MAX_PARCEL_BYTES, MAX_INBOX_PARCELS, MAX_INBOX_BYTES,
   validPath, createIdentity, verifyIdentity, signMod, verifyManifest, verifyModFiles,
-  sealParcel, openParcel, createInbox, selfTest
+  readPk3, verifyModPackage, sealParcel, openParcel, createInbox, selfTest
 };
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 else global.ZeqContent = api;
