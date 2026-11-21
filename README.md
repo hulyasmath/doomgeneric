@@ -20,9 +20,10 @@ real engine paths (`P_FireWeapon`, `P_DamageMobj`, `P_KillMobj`, `P_MovePlayer`,
 - **[Portable profiles](docs/zeq-portable-profiles-v1.md)** and
   **[conformance/support matrix](docs/zeq-conformance-matrix-v1.md)** — exact
   Phase 9–13 APIs, tested runtimes, support policy, and residual limitations.
-- **[Release evidence](docs/zeq-release-evidence-v1.md)** — the local regression,
-  fuzz, performance, visual, networking, and build-manifest record, with delivery
-  gates and unsupported claims kept explicit.
+- **[Release evidence](docs/zeq-release-evidence-v1.md)** and
+  **[final scoped audit](docs/zeq-final-audit-v1.md)** — the local regression,
+  fuzz, performance, visual, networking, build-manifest, and final acceptance
+  records, with delivery gates and unsupported claims kept explicit.
 
 `hulyasmath/doomgeneric` owns the complete game and reference integration.
 `hulyasmath/zeq-doomgeneric` is the portable SDK distribution: portable modules,
@@ -30,19 +31,20 @@ schemas, vectors, tests, and integration guides, without a second maintained Doo
 game tree. The repositories align by SDK release identity, not by mirroring every
 engine file into both projects.
 
-Phases 0–7 have implemented and locally tested reference profiles, including
-signed single-PWAD and bounded multi-PWAD PK3 content, native two-client TCP
-rollback, pixel/resource validation, and real-host visual commitments. Phase 8
-local build/regression gates and promoted-preview tests have passed; executable
-and browser source delivery is fetch-verified through remote commit
-`49ff720a5147e012896fde5b23bed642348d9862`. Final repository-tree and audit
-closeout is tracked separately. The portable Phase 9–13 quantity, scientific
-numerical, experiment, lifecycle, second-host chamber, and domain-pack modules
-are implemented and locally tested within their documented scopes. Browser
+Phases 0–13 have implemented and locally tested reference profiles within their
+documented scopes, including signed content, native two-client TCP rollback,
+pixel/resource validation, real-host visual commitments, deterministic bots,
+portable quantities/numerics/experiments/lifecycle, and the non-Doom chamber.
+The final scoped local audit passed at executable source
+`f3b0b06b2ade79af7130c695bee3f8e0fc522eae`; it includes the correction and
+retesting of the impaired-network pending-thinker rollback defect. Current
+preview `56dbada` was saved from the exact tested browser bytes. Browser
 networking, production Internet security, physical two-machine validation,
-external-machine reproduction, plugin execution/sandboxing, and arbitrary
-third-party engine compatibility remain outside those profiles. The roadmap
-and conformance matrix distinguish local evidence from delivery and certification.
+external-machine reproduction, plugin execution/sandboxing, physical mobile
+certification, arbitrary third-party engine compatibility, and unconditional
+mathematical/physical correctness remain outside the evidence. The roadmap,
+conformance matrix, and final audit distinguish implementation, local testing,
+remote delivery, and certification.
 
 ## What the Zeq layer adds
 

@@ -2,7 +2,9 @@
 
 Date: 2026-11-21
 
-Status: **local build, regression, and promoted-preview gates passed; executable/browser source delivery fetch-verified through `49ff720a5147e012896fde5b23bed642348d9862`; final complete-tree, SDK-only, and audit acceptance recorded separately**
+Status: **final scoped local audit passed at executable source `f3b0b06b2ade79af7130c695bee3f8e0fc522eae`; see [final audit](zeq-final-audit-v1.md) for current identities, the repaired networking regression, residual limitations, and external remote-tree acceptance procedure**
+
+> Historical records below are retained without rewriting their artifact hashes or preview provenance. The current audited WASM SHA-256 is `857c4aa11ce6f6a1d7bac191d74c916210feff679a0bda26dc919962c9ec60da`, the native engine SHA-256 is `f69a91dd30b94ac0efcb0242a1d48bc4c8619841ef789365d8026a56ce886084`, and the current saved preview is `56dbada`.
 
 This report records the scoped evidence for the real doomgeneric C/WebAssembly reference host and the portable SDK. It is not an external certification, a universal determinism claim, a physical-accuracy claim, or proof of competitive legitimacy.
 
