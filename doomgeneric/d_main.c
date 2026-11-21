@@ -57,6 +57,7 @@
 #include "i_system.h"
 #include "i_timer.h"
 #include "i_video.h"
+#include "zeq_visual.h"
 
 #include "g_game.h"
 
@@ -139,11 +140,11 @@ void D_CheckNetGame(void);
 void D_ProcessEvents (void)
 {
     event_t*	ev;
-		
+			
     // IF STORE DEMO, DO NOT ACCEPT INPUT
     if (storedemo)
         return;
-		
+			
     while ((ev = D_PopEvent()) != NULL)
     {
 	if (M_Responder (ev))
@@ -184,25 +185,30 @@ void D_Display (void)
 
     if (nodrawers)
     	return;                    // for comparative timing / profiling
-			
+				
     redrawsbar = false;
     
     // change the view size if needed
     if (setsizeneeded)
     {
-			R_ExecuteSetViewSize ();
-			oldgamestate = -1;                      // force background redraw
-			borderdrawcount = 3;
+				R_ExecuteSetViewSize ();
+				oldgamestate = -1;                      // force background redraw
+				borderdrawcount = 3;
     }
 
     // save the current screen if about to wipe
     if (gamestate != wipegamestate)
-			{
-			wipe = true;
-			wipe_StartScreen(0, 0, SCREENWIDTH, SCREENHEIGHT);
+				{
+				wipe = true;
+				wipe_StartScreen(0, 0, SCREENWIDTH, SCREENHEIGHT);
     }
     else
     	wipe = false;
+#ifdef ZEQ_HEADLESS
+    // A headless clock cannot advance inside D_Display's real-time wipe loop.
+    // Capture the fully drawn current state instead of a transition frame.
+    if (ZEQ_VisualEnabled()) wipe = false;
+#endif
 
     if (gamestate == GS_LEVEL && gametic)
     	HU_Erase();
@@ -211,29 +217,29 @@ void D_Display (void)
     switch (gamestate)
     {
       case GS_LEVEL:
-			if (!gametic)
+				if (!gametic)
+					break;
+				if (automapactive)
+					AM_Drawer ();
+				if (wipe || (viewheight != 200 && fullscreen) )
+					redrawsbar = true;
+				if (inhelpscreensstate && !inhelpscreens)
+					redrawsbar = true;              // just put away the help screen
+				ST_Drawer (viewheight == 200, redrawsbar );
+				fullscreen = viewheight == 200;
 				break;
-			if (automapactive)
-				AM_Drawer ();
-			if (wipe || (viewheight != 200 && fullscreen) )
-				redrawsbar = true;
-			if (inhelpscreensstate && !inhelpscreens)
-				redrawsbar = true;              // just put away the help screen
-			ST_Drawer (viewheight == 200, redrawsbar );
-			fullscreen = viewheight == 200;
-			break;
 
       case GS_INTERMISSION:
-			WI_Drawer ();
-			break;
+				WI_Drawer ();
+				break;
 
       case GS_FINALE:
-			F_Drawer ();
-			break;
+				F_Drawer ();
+				break;
 
       case GS_DEMOSCREEN:
-			D_PageDrawer ();
-			break;
+				D_PageDrawer ();
+				break;
     }
     
     // draw buffered stuff to screen
@@ -253,20 +259,20 @@ void D_Display (void)
     // see if the border needs to be initially drawn
     if (gamestate == GS_LEVEL && oldgamestate != GS_LEVEL)
     {
-			viewactivestate = false;        // view was not active
-			R_FillBackScreen ();    // draw the pattern into the back screen
+				viewactivestate = false;        // view was not active
+				R_FillBackScreen ();    // draw the pattern into the back screen
     }
 
     // see if the border needs to be updated to the screen
     if (gamestate == GS_LEVEL && !automapactive && scaledviewwidth != 320)
     {
-			if (menuactive || menuactivestate || !viewactivestate)
-				borderdrawcount = 3;
-			if (borderdrawcount)
-			{
-				R_DrawViewBorder ();    // erase old menu stuff
-				borderdrawcount--;
-			}
+				if (menuactive || menuactivestate || !viewactivestate)
+					borderdrawcount = 3;
+				if (borderdrawcount)
+				{
+					R_DrawViewBorder ();    // erase old menu stuff
+					borderdrawcount--;
+				}
     }
 
     if (testcontrols)
@@ -284,12 +290,12 @@ void D_Display (void)
     // draw pause pic
     if (paused)
     {
-			if (automapactive)
-				y = 4;
-			else
-				y = viewwindowy+4;
-			V_DrawPatchDirect(viewwindowx + (scaledviewwidth - 68) / 2, y,
-								  W_CacheLumpName (DEH_String("M_PAUSE"), PU_CACHE));
+				if (automapactive)
+					y = 4;
+				else
+					y = viewwindowy+4;
+				V_DrawPatchDirect(viewwindowx + (scaledviewwidth - 68) / 2, y,
+									  W_CacheLumpName (DEH_String("M_PAUSE"), PU_CACHE));
     }
 
 
@@ -321,7 +327,7 @@ void D_Display (void)
         
 	wipestart = nowtime;
 	done = wipe_ScreenWipe(wipe_Melt
-				       , 0, 0, SCREENWIDTH, SCREENHEIGHT, tics);
+					       , 0, 0, SCREENWIDTH, SCREENHEIGHT, tics);
 	I_UpdateNoBlit ();
 	M_Drawer ();                            // menu is drawn even on top of wipes
 	I_FinishUpdate ();                      // page flip or blit buffer
@@ -411,13 +417,19 @@ void doomgeneric_Tick()
 
 #ifndef ZEQ_HEADLESS
     S_UpdateSounds (players[consoleplayer].mo);// move positional sounds
+#endif
 
-    // Update display, next frame, with current state.
-    if (screenvisible)
+    // The native headless profile renders only when visual evidence is requested.
+    if (screenvisible
+#ifndef ZEQ_HEADLESS
+        || 0
+#else
+        && ZEQ_VisualEnabled()
+#endif
+       )
     {
         D_Display ();
     }
-#endif
 }
 
 //
@@ -1245,7 +1257,7 @@ void D_DoomMain (void)
     //
     // Disable monsters.
     //
-		
+			
     nomonsters = M_CheckParm ("-nomonsters");
 
     //!
@@ -1338,7 +1350,7 @@ void D_DoomMain (void)
 	int     scale = 200;
 	extern int forwardmove[2];
 	extern int sidemove[2];
-		
+			
 	if (p<myargc-1)
 	    scale = atoi (myargv[p+1]);
 	if (scale < 10)
@@ -1573,7 +1585,7 @@ void D_DoomMain (void)
 	    "dphoof","bfgga0","heada1","cybra1","spida1d1"
 	};
 	int i;
-		
+			
 	if ( gamemode == shareware)
 	    I_Error(DEH_String("\nYou cannot -file with the shareware "
 			       "version. Register!"));
@@ -1662,7 +1674,7 @@ void D_DoomMain (void)
 	startmap = 1;
 	autostart = true;
     }
-		
+			
     timelimit = 0;
 
     //! 
@@ -1808,24 +1820,24 @@ void D_DoomMain (void)
 
     if (p)
     {
-			G_RecordDemo (myargv[p+1]);
-			autostart = true;
+				G_RecordDemo (myargv[p+1]);
+				autostart = true;
     }
 
     p = M_CheckParmWithArgs("-playdemo", 1);
     if (p)
     {
-			singledemo = true;              // quit after one demo
-			G_DeferedPlayDemo (demolumpname);
-			D_DoomLoop ();
+				singledemo = true;              // quit after one demo
+				G_DeferedPlayDemo (demolumpname);
+				D_DoomLoop ();
         return;
     }
 
     p = M_CheckParmWithArgs("-timedemo", 1);
     if (p)
     {
-			G_TimeDemo (demolumpname);
-			D_DoomLoop ();
+				G_TimeDemo (demolumpname);
+				D_DoomLoop ();
         return;
     }
 
@@ -1837,12 +1849,11 @@ void D_DoomMain (void)
 
     if (gameaction != ga_loadgame )
     {
-			if (autostart || netgame)
-				G_InitNew (startskill, startepisode, startmap);
-			else
-				D_StartTitle ();                // start up intro loop
+				if (autostart || netgame)
+					G_InitNew (startskill, startepisode, startmap);
+				else
+					D_StartTitle ();                // start up intro loop
     }
 
     D_DoomLoop ();
 }
-
