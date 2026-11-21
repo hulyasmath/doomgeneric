@@ -293,6 +293,7 @@ function assertNoErrors(run) {
   for (const run of [direct.host, direct.client]) {
     const descriptorRecord = run.records.find((record) => record.kind === "net-descriptor");
     const descriptor = ZeqNet.session(descriptorRecord.descriptor);
+    assert.equal(descriptor.engine_build, "doomgeneric-zeq-phase6-v2");
     assert.equal(await ZeqNet.descriptorDigest(descriptor), descriptorRecord.descriptor_sha256);
     assert.ok(run.records.some((record) => record.kind === "net-summary" && record.confirmed_tics === 140));
   }
@@ -333,7 +334,9 @@ function assertNoErrors(run) {
 
   if (!process.env.ZEQ_NET_CASE || process.env.ZEQ_NET_CASE === "impaired") {
   const impairedTics = Number(process.env.ZEQ_NET_IMPAIRED_TICS || 180);
-  const impaired = await runPair({ maxTic: impairedTics, impaired: true });
+  const impaired = await runPair({ maxTic: impairedTics, impaired: true,
+    hostEnv: { ZEQ_NET_VERIFY_BOUNDARIES: "1" },
+    clientEnv: { ZEQ_NET_VERIFY_BOUNDARIES: "1" } });
   assertNoErrors(impaired.host);
   assertNoErrors(impaired.client);
   assert.deepEqual(assertChain(impaired.host, impairedTics), assertChain(impaired.client, impairedTics));
