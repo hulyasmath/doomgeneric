@@ -16,7 +16,7 @@
     <div class="top-actions">
       <span class="engine-state" id="engine-state"><i></i>BOOTING ENGINE</span>
       <button type="button" data-open="manual-dialog">MANUAL</button>
-      <button type="button" data-open="sdk-dialog">SDK</button>
+      <button type="button" data-open="sdk-dialog">SDK <span id="sdk-project-count" aria-label="20 projects">20</span></button>
       <button type="button" data-open="ledger-dialog">LEDGER <span id="ledger-count">0</span></button>
       <button type="button" data-open="settings-dialog">SETTINGS</button>
     </div>
@@ -180,6 +180,58 @@
       <a href="https://github.com/hulyasmath/zeq-doomgeneric/blob/master/docs/zeq-portable-profiles-v1.md" target="_blank" rel="noopener noreferrer">PORTABLE PROFILES ↗</a>
       <a href="https://github.com/hulyasmath/zeq-doomgeneric/blob/master/docs/zeq-conformance-matrix-v1.md" target="_blank" rel="noopener noreferrer">TESTED MATRIX + LIMITS ↗</a>
     </nav>
+
+    <section class="sdk-projects" id="sdk-projects" aria-labelledby="sdk-projects-title">
+      <div class="sdk-projects-head">
+        <div><span class="kicker">ACTIVE DEVELOPMENT BRANCH</span><h3 id="sdk-projects-title">20 third-party SDK projects</h3></div>
+        <a href="https://github.com/hulyasmath/zeq-doomgeneric/tree/feature/20-reference-projects" target="_blank" rel="noopener noreferrer">OPEN BUILD BRANCH ↗</a>
+      </div>
+      <p>Twenty focused host adapters, built and evidenced in sequence. Each keeps its real host authoritative while sharing Zeq’s exact-time, replay, and verification building blocks.</p>
+      <details class="sdk-project-details">
+        <summary>VIEW ALL 20 PROJECTS <span>1 TESTED / 19 IN PROGRAMME</span></summary>
+        <ol class="sdk-project-list">
+        <li class="is-tested"><a href="https://github.com/hulyasmath/zeq-doomgeneric/tree/feature/20-reference-projects/projects/01-roblox-competitive-modes" target="_blank" rel="noopener noreferrer"><b>01 / Roblox competitive modes</b><small>CROSS-RUNTIME PASS</small></a></li>
+        <li><span><b>02 / Minecraft technical / PvP servers</b><small>NEXT</small></span></li>
+        <li><span><b>03 / Unity multiplayer</b><small>QUEUED</small></span></li>
+        <li><span><b>16 / Generic replay / anti-cheat</b><small>QUEUED</small></span></li>
+        <li><span><b>04 / Unreal Engine multiplayer</b><small>QUEUED</small></span></li>
+        <li><span><b>05 / Godot multiplayer</b><small>QUEUED</small></span></li>
+        <li><span><b>06 / Racing / ghost integrity</b><small>QUEUED</small></span></li>
+        <li><span><b>07 / Fighting / platform fighters</b><small>QUEUED</small></span></li>
+        <li><span><b>08 / RTS / MOBA servers</b><small>QUEUED</small></span></li>
+        <li><span><b>09 / Simulation / digital twins</b><small>QUEUED</small></span></li>
+        <li><span><b>10 / Financial / trading simulation</b><small>QUEUED</small></span></li>
+        <li><span><b>11 / Collaborative CAD / engineering</b><small>QUEUED</small></span></li>
+        <li><span><b>12 / Audio DAW plugins</b><small>QUEUED</small></span></li>
+        <li><span><b>13 / Video production / real-time VFX</b><small>QUEUED</small></span></li>
+        <li><span><b>14 / IoT / industrial dashboards</b><small>QUEUED</small></span></li>
+        <li><span><b>15 / Multiplayer browser games</b><small>QUEUED</small></span></li>
+        <li><span><b>17 / Scientific notebooks / Python</b><small>QUEUED</small></span></li>
+        <li><span><b>18 / Smart-contract / oracle simulation</b><small>QUEUED</small></span></li>
+        <li><span><b>19 / Education / interactive physics</b><small>QUEUED</small></span></li>
+        <li><span><b>20 / CI / regression harnesses</b><small>QUEUED</small></span></li>
+        </ol>
+      </details>
+      <div class="sdk-project-focus">
+        <span class="project-number">01</span>
+        <div>
+          <h4>ROBLOX COMPETITIVE MODES</h4>
+          <p>Server-owned Q16.16 controller at 60 Hz, exact Q64 Zeqond phase, canonical state bytes, and SHA-256 replay checkpoints.</p>
+          <ul>
+            <li>JavaScript + standalone Luau passed</li>
+            <li>600 ticks / replay match / tamper detected</li>
+            <li>Roblox Studio multiplayer validation still required</li>
+          </ul>
+        </div>
+      </div>
+      <nav class="sdk-project-actions" aria-label="Roblox project source and tests">
+        <a href="https://github.com/hulyasmath/zeq-doomgeneric/blob/feature/20-reference-projects/projects/01-roblox-competitive-modes/README.md" target="_blank" rel="noopener noreferrer">PROJECT GUIDE ↗</a>
+        <a href="https://github.com/hulyasmath/zeq-doomgeneric/blob/feature/20-reference-projects/projects/01-roblox-competitive-modes/src/ZeqRoblox.luau" target="_blank" rel="noopener noreferrer">LUAU MODULE ↗</a>
+        <a href="https://github.com/hulyasmath/zeq-doomgeneric/blob/feature/20-reference-projects/projects/01-roblox-competitive-modes/src/ZeqServer.server.luau" target="_blank" rel="noopener noreferrer">SERVER ADAPTER ↗</a>
+        <a href="https://github.com/hulyasmath/zeq-doomgeneric/blob/feature/20-reference-projects/projects/01-roblox-competitive-modes/tests/test_roblox.js" target="_blank" rel="noopener noreferrer">CONFORMANCE TEST ↗</a>
+      </nav>
+      <p class="fine-print">Current evidence covers the portable reference lane and its real Luau runtime. It is not yet a Roblox Studio certification, complete anti-cheat system, or competitive-legitimacy proof.</p>
+    </section>
 
     <div class="sdk-status-grid" aria-label="Implementation status">
       <section><h3>IMPLEMENTED + LOCALLY TESTED</h3><p>Exact C/JavaScript/Python time vectors; real Doom physics/replay; signed evidence and ZEQC3; signed PWAD/PK3 content and sealed parcels; native TCP rollback; pixel, texture, and real-host visual profiles; exact units, scientific solvers, experiments, lifecycle, and the non-Doom chamber.</p></section>
