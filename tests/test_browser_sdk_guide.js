@@ -27,6 +27,7 @@ const SHOTS = process.env.ZEQ_SCREENSHOT_DIR || "/mnt/agents/work/sdk-guide-evid
   const page = await context.newPage();
   observe(page);
   await boot(page);
+  assert.equal(await page.locator("#sdk-project-count").textContent(), "20");
   await page.locator('.top-actions [data-open="sdk-dialog"]').click();
   await page.locator("#sdk-dialog").waitFor({ state: "visible" });
   assert.match(await page.locator("#sdk-dialog h2").textContent(), /Keep your engine/);
@@ -40,21 +41,40 @@ const SHOTS = process.env.ZEQ_SCREENSHOT_DIR || "/mnt/agents/work/sdk-guide-evid
     assert.equal(link.target, "_blank");
     assert.match(link.rel, /noopener/);
   }
-  const snippets = await page.locator("#sdk-dialog details").evaluateAll((nodes) => nodes.map((node) => ({ open: node.open, height: node.getBoundingClientRect().height })));
+  const programme = page.locator("#sdk-projects");
+  await programme.locator(".sdk-project-details summary").click();
+  const projectItems = await programme.locator(".sdk-project-list li").evaluateAll((nodes) => nodes.map((node) => ({
+    label: node.textContent, links: node.querySelectorAll("a").length
+  })));
+  assert.equal(projectItems.length, 20);
+  assert.equal(projectItems.filter((item) => item.links === 1).length, 1);
+  assert.match(projectItems[0].label, /ROBLOX COMPETITIVE MODES/i);
+  assert.match(projectItems[0].label, /CROSS-RUNTIME PASS/);
+  for (const number of [1, 2, 3, 16, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20]) {
+    assert.ok(projectItems.some((item) => item.label.includes(String(number).padStart(2, "0") + " /")), `missing project ${number}`);
+  }
+  assert.equal(await programme.locator(".sdk-project-actions a").count(), 4);
+  const projectLinks = await programme.locator("a").evaluateAll((nodes) => nodes.map((a) => a.href));
+  for (const href of projectLinks) {
+    assert.ok(href.startsWith("https://github.com/hulyasmath/zeq-doomgeneric/"));
+    assert.ok(href.includes("feature/20-reference-projects"));
+  }
+  await programme.locator(".sdk-project-details summary").click();
+  const snippets = await page.locator("#sdk-dialog details.sdk-snippet").evaluateAll((nodes) => nodes.map((node) => ({ open: node.open, height: node.getBoundingClientRect().height })));
   assert.equal(snippets[0].open, true);
   assert.ok(snippets[0].height > 44);
   assert.equal(snippets.length, 3);
   assert.equal(snippets[1].open, false);
   assert.equal(snippets[2].open, false);
-  await page.locator("#sdk-dialog details").nth(1).locator("summary").click();
-  assert.equal(await page.locator("#sdk-dialog details").nth(1).getAttribute("open"), "");
+  await page.locator("#sdk-dialog details.sdk-snippet").nth(1).locator("summary").click();
+  assert.equal(await page.locator("#sdk-dialog details.sdk-snippet").nth(1).getAttribute("open"), "");
   await page.locator('[data-copy-target="sdk-c-snippet"]').click();
   await page.waitForFunction(() => document.getElementById("sdk-copy-status").textContent.includes("C EXACT-TIME SNIPPET COPIED"));
   assert.match(await page.evaluate(() => navigator.clipboard.readText()), /ZEQ_TimeFromTic\(host_tick, host_tick_rate, &instant\)/);
   await page.locator('[data-copy-target="sdk-js-snippet"]').click();
   await page.waitForFunction(() => document.getElementById("sdk-copy-status").textContent.includes("JAVASCRIPT EXACT-TIME SNIPPET COPIED"));
   assert.match(await page.evaluate(() => navigator.clipboard.readText()), /ZeqSDK\.time\.fromTic\(hostTick, hostTickRate\)/);
-  await page.locator("#sdk-dialog details").nth(2).locator("summary").click();
+  await page.locator("#sdk-dialog details.sdk-snippet").nth(2).locator("summary").click();
   await page.locator('[data-copy-target="sdk-quantity-snippet"]').click();
   await page.waitForFunction(() => document.getElementById("sdk-copy-status").textContent.includes("EXACT-UNIT SNIPPET COPIED"));
   assert.match(await page.evaluate(() => navigator.clipboard.readText()), /Q\.convert\(threeZeqonds, "ms"\)/);
@@ -77,8 +97,13 @@ const SHOTS = process.env.ZEQ_SCREENSHOT_DIR || "/mnt/agents/work/sdk-guide-evid
   assert.ok(topRect.x >= 0 && topRect.x + topRect.width <= 390 && topRect.height >= 44);
   await topSdk.tap();
   await mp.locator("#sdk-dialog").waitFor({ state: "visible" });
-  await mp.locator("#sdk-dialog details").nth(1).locator("summary").tap();
-  assert.equal(await mp.locator("#sdk-dialog details").nth(1).getAttribute("open"), "");
+  await mp.locator("#sdk-dialog details.sdk-project-details summary").tap();
+  assert.equal(await mp.locator("#sdk-dialog .sdk-project-list li").count(), 20);
+  const projectColumns = await mp.locator("#sdk-dialog .sdk-project-list").evaluate((node) => getComputedStyle(node).gridTemplateColumns);
+  assert.ok(!projectColumns.includes(" "), "mobile project list must use one column");
+  await mp.locator("#sdk-dialog details.sdk-project-details summary").tap();
+  await mp.locator("#sdk-dialog details.sdk-snippet").nth(1).locator("summary").tap();
+  assert.equal(await mp.locator("#sdk-dialog details.sdk-snippet").nth(1).getAttribute("open"), "");
   const layout = await mp.evaluate(() => {
     const dialog = document.getElementById("sdk-dialog");
     const grid = getComputedStyle(dialog.querySelector(".sdk-status-grid"));
@@ -98,8 +123,10 @@ const SHOTS = process.env.ZEQ_SCREENSHOT_DIR || "/mnt/agents/work/sdk-guide-evid
 
   assert.deepEqual(errors, []);
   assert.deepEqual(badResponses, []);
-  console.log(JSON.stringify({ ok: true, documentationLinks: links.length, copyButtons: 3,
-    disclosureControls: 3, closePaths: ["Escape", "close button"], mobileLayout: layout,
-    consoleErrors: 0, badResponses: 0 }, null, 2));
+  console.log(JSON.stringify({ ok: true, documentationLinks: links.length, sdkProjects: projectItems.length,
+    testedProjectLinks: projectItems.filter((item) => item.links === 1).length,
+    robloxSourceLinks: projectLinks.length - 1, copyButtons: 3,
+    disclosureControls: 4, closePaths: ["Escape", "close button"], mobileLayout: layout,
+    mobileProjectColumns: projectColumns, consoleErrors: 0, badResponses: 0 }, null, 2));
   await browser.close();
 })().catch((error) => { console.error(error); process.exit(1); });
