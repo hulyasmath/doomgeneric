@@ -39,8 +39,9 @@ if [ ! -d freepats ]; then
   curl -L --fail -o /tmp/freepats.deb \
     https://deb.debian.org/debian/pool/main/f/freepats/freepats_20060219-4_all.deb
   rm -rf /tmp/freepats-x && mkdir -p /tmp/freepats-x
-  dpkg-deb -x /tmp/freepats-x/usr/share/midi/freepats freepats
-  cp -R /tmp/freepats-x/usr/share/doc/freepats/copyright freepats/COPYRIGHT
+  dpkg-deb -x /tmp/freepats.deb /tmp/freepats-x
+  cp -R /tmp/freepats-x/usr/share/midi/freepats freepats
+  cp /tmp/freepats-x/usr/share/doc/freepats/copyright freepats/COPYRIGHT
 fi
 if [ ! -f timidity.cfg ]; then
   FREEPATS_CFG=$(find /tmp/freepats-x -name freepats.cfg | head -1)
