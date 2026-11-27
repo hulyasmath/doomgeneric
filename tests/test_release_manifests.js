@@ -44,7 +44,7 @@ assert.equal(browser.repositoryHead, commit);
 const buildInfo = fs.readFileSync(path.join(ROOT, "dist/sdk/zeq-build-info.js"), "utf8");
 assert.ok(buildInfo.includes(`sourceCommit: "${browser.sourceCommit}"`), "compiled build identity differs from its manifest");
 const browserSources = [
-  "build-web.sh", "build-sdk-docs.py", "web/machine.html", "web/machine-bootstrap.js",
+  "build-web.sh", "build-sdk-docs.py", "assemble-web-release.py", "web/machine.html", "web/machine-bootstrap.js",
   "web/machine-catalogue.js", "web/machine-page.js", "web/machine-engine-1.js", "web/machine-engine-2.js",
   "web/machine-runtime-1.js", "web/machine-runtime-2.js", "web/shell.html", "web/sdk.html", "web/zeq.css", "web/zeq.js",
   "web/zeq-machine.js", "web/zeq-room.js", "web/zeq-capsule-worker.js", "sdk/zeq-time-table.js",
