@@ -74,6 +74,7 @@ async function boot(page) {
     assert.deepEqual(after.input, { holds: [], counts: {} });
 
     await game.evaluate(() => { if (document.pointerLockElement) document.exitPointerLock(); });
+    await game.waitForFunction(() => document.pointerLockElement === null);
     await game.locator("#pause-button").click();
     await game.waitForFunction(() => ZeqDiagnostics.game().paused === 1);
     await page.locator("#doom-open-observer").click();
