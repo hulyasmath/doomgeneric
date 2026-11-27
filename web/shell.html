@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#090d0b">
   <meta name="description" content="The original Doom engine with exact Zeq physics, signed evidence, ZEQC3 encrypted local saves, finite impulses, cooldowns, and touch controls.">
-  <title>ZEQ // DOOM PROTOCOL</title>
+  <title>Doom room // Zeq machine</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23090d0b'/%3E%3Cpath d='M12 14h40L29 50h23' fill='none' stroke='%2336e88f' stroke-width='8'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="zeq.css">
 </head>
@@ -16,13 +16,13 @@
     <div class="top-actions">
       <span class="engine-state" id="engine-state"><i></i>BOOTING ENGINE</span>
       <button type="button" data-open="manual-dialog">MANUAL</button>
-      <button type="button" data-open="sdk-dialog">SDK</button>
+      <button type="button" data-open="sdk-dialog">SDK <span id="sdk-project-count" aria-label="20 projects">20</span></button>
       <button type="button" data-open="ledger-dialog">LEDGER <span id="ledger-count">0</span></button>
       <button type="button" data-open="settings-dialog">SETTINGS</button>
     </div>
   </header>
 
-  <main class="command-deck">
+  <main class="command-deck" id="game">
     <section class="viewport-column" aria-label="Doom game viewport">
       <div class="screen-frame" id="screen-frame">
         <canvas id="canvas" tabindex="0" aria-label="Doom game. Use keyboard and mouse, or the touch controls."></canvas>
@@ -135,7 +135,7 @@
     </aside>
   </main>
 
-  <footer class="statusbar"><span><i></i> DOOMGENERIC / WASM</span><span id="runtime-detail">640 × 400 · 35 HZ SIMULATION</span><span>LOCAL-FIRST / NO TELEMETRY UPLINK</span></footer>
+  <footer class="statusbar"><span><i></i> DOOMGENERIC / WASM</span><span id="runtime-detail">640 × 400 · 35 HZ SIMULATION</span><span>DOOM ROOM / SIGNED MACHINE OBSERVATION</span></footer>
 </div>
 
 <dialog id="manual-dialog">
@@ -171,7 +171,7 @@
     <span class="kicker">ENGINE-NEUTRAL MODULES / REAL HOST ADAPTERS</span>
     <h2>Bring the arithmetic.<br>Keep your engine.</h2>
     <p class="sdk-lead">Zeq adds exact simulation time, explicit scientific numerical profiles, reproducible evidence, local save protection, and verified-content contracts around an existing host. Your engine remains authoritative; Doom objects, a 35 Hz tick, and this browser shell are not required.</p>
-    <nav class="sdk-links" aria-label="SDK source and documentation">
+    <nav class="sdk-links" aria-label="SDK on-site documentation"><a href="sdk.html" target="_blank" rel="noopener">FULL ON-SITE DEVELOPER MANUAL ↗</a><a href="sdk.html#integration" target="_blank" rel="noopener">IMPLEMENTATION GUIDE ↗</a><a href="sdk.html#source" target="_blank" rel="noopener">SOURCE + CONFORMANCE TESTS ↗</a><a href="sdk.html#developer-manual" target="_blank" rel="noopener">PRODUCTION RELEASE GATE ↗</a></nav><nav class="sdk-links" aria-label="Optional SDK source history">
       <a href="https://github.com/hulyasmath/zeq-doomgeneric" target="_blank" rel="noopener noreferrer">SDK REPOSITORY ↗</a>
       <a href="https://github.com/hulyasmath/zeq-doomgeneric/blob/master/docs/zeq-sdk-integration-v1.md" target="_blank" rel="noopener noreferrer">INTEGRATION GUIDE ↗</a>
       <a href="https://github.com/hulyasmath/zeq-doomgeneric/blob/master/sdk/README.md" target="_blank" rel="noopener noreferrer">MODULE API ↗</a>
@@ -180,6 +180,58 @@
       <a href="https://github.com/hulyasmath/zeq-doomgeneric/blob/master/docs/zeq-portable-profiles-v1.md" target="_blank" rel="noopener noreferrer">PORTABLE PROFILES ↗</a>
       <a href="https://github.com/hulyasmath/zeq-doomgeneric/blob/master/docs/zeq-conformance-matrix-v1.md" target="_blank" rel="noopener noreferrer">TESTED MATRIX + LIMITS ↗</a>
     </nav>
+
+    <section class="sdk-projects" id="sdk-projects" aria-labelledby="sdk-projects-title">
+      <div class="sdk-projects-head">
+        <div><span class="kicker">LIVE SDK MASTER</span><h3 id="sdk-projects-title">20 third-party SDK projects</h3></div>
+        <a href="https://github.com/hulyasmath/zeq-doomgeneric/tree/master/projects" target="_blank" rel="noopener noreferrer">OPEN PROJECT SOURCES ↗</a>
+      </div>
+      <p>Twenty focused host adapters, built and evidenced in sequence. Each keeps its real host authoritative while sharing Zeq’s exact-time, replay, and verification building blocks.</p>
+      <details class="sdk-project-details">
+        <summary>VIEW ALL 20 PROJECTS <span>14 TESTED / 6 QUEUED</span></summary>
+        <ol class="sdk-project-list">
+        <li class="is-tested"><a href="https://github.com/hulyasmath/zeq-doomgeneric/tree/master/projects/01-roblox-competitive-modes" target="_blank" rel="noopener noreferrer"><b>01 / Roblox competitive modes</b><small>JS + STANDALONE LUAU PASS</small></a></li>
+        <li class="is-tested"><a href="https://github.com/hulyasmath/zeq-doomgeneric/tree/master/projects/02-minecraft-technical-servers" target="_blank" rel="noopener noreferrer"><b>02 / Minecraft technical / PvP servers</b><small>FABRIC SERVER PASS</small></a></li>
+        <li class="is-tested"><a href="https://github.com/hulyasmath/zeq-doomgeneric/tree/master/projects/03-unity-multiplayer" target="_blank" rel="noopener noreferrer"><b>03 / Unity multiplayer</b><small>C# + JS PORTABLE PASS</small></a></li>
+        <li class="is-tested"><a href="https://github.com/hulyasmath/zeq-doomgeneric/tree/master/projects/04-unreal-multiplayer" target="_blank" rel="noopener noreferrer"><b>04 / Unreal Engine multiplayer</b><small>C++ + JS PORTABLE PASS</small></a></li>
+        <li class="is-tested"><a href="https://github.com/hulyasmath/zeq-doomgeneric/tree/master/projects/05-godot-multiplayer" target="_blank" rel="noopener noreferrer"><b>05 / Godot multiplayer</b><small>PORTABLE GATE + HOST SOURCE</small></a></li>
+        <li class="is-tested"><a href="https://github.com/hulyasmath/zeq-doomgeneric/tree/master/projects/06-racing-ghost-integrity" target="_blank" rel="noopener noreferrer"><b>06 / Racing / ghost integrity</b><small>REFERENCE PROCESS PASS</small></a></li>
+        <li class="is-tested"><a href="https://github.com/hulyasmath/zeq-doomgeneric/tree/master/projects/07-fighting-platform-fighters" target="_blank" rel="noopener noreferrer"><b>07 / Fighting / platform fighters</b><small>PORTABLE + 2-PROCESS PASS</small></a></li>
+        <li class="is-tested"><a href="https://github.com/hulyasmath/zeq-doomgeneric/tree/master/projects/08-rts-moba-servers" target="_blank" rel="noopener noreferrer"><b>08 / RTS / MOBA servers</b><small>PORTABLE + 3-PROCESS PASS</small></a></li>
+        <li class="is-tested"><a href="sdk.html#project-09" target="_blank" rel="noopener"><b>09 / Simulation / digital twins</b><small>C + PYTHON + 3-PROCESS PASS</small></a></li>
+        <li class="is-tested"><a href="sdk.html#project-10" target="_blank" rel="noopener"><b>10 / Financial / trading simulation</b><small>C++ + JS + 3-PROCESS PASS</small></a></li>
+        <li class="is-tested"><a href="sdk.html#project-11" target="_blank" rel="noopener"><b>11 / Collaborative CAD / engineering</b><small>C++ + JS + 3-PROCESS PASS</small></a></li>
+        <li class="is-tested"><a href="sdk.html#project-12" target="_blank" rel="noopener"><b>12 / Audio DAW plugins</b><small>C++ + JS + 3-PROCESS PASS</small></a></li>
+        <li class="is-tested"><a href="sdk.html#project-13" target="_blank" rel="noopener"><b>13 / Video production / real-time VFX</b><small>C++ + PYTHON + 3-PROCESS PASS</small></a></li>
+        <li><span><b>14 / IoT / industrial dashboards</b><small>QUEUED</small></span></li>
+        <li><span><b>15 / Multiplayer browser games</b><small>QUEUED</small></span></li>
+        <li class="is-tested"><a href="https://github.com/hulyasmath/zeq-doomgeneric/tree/master/projects/16-generic-replay-anticheat" target="_blank" rel="noopener noreferrer"><b>16 / Generic replay / anti-cheat</b><small>SIGNED RECEIPTS + RERUN PASS</small></a></li>
+        <li><span><b>17 / Scientific notebooks / Python</b><small>QUEUED</small></span></li>
+        <li><span><b>18 / Smart-contract / oracle simulation</b><small>QUEUED</small></span></li>
+        <li><span><b>19 / Education / interactive physics</b><small>QUEUED</small></span></li>
+        <li><span><b>20 / CI / regression harnesses</b><small>QUEUED</small></span></li>
+        </ol>
+      </details>
+      <div class="sdk-project-focus">
+        <span class="project-number">01</span>
+        <div>
+          <h4>ROBLOX COMPETITIVE MODES</h4>
+          <p>Server-owned Q16.16 controller at 60 Hz, exact Q64 Zeqond phase, canonical state bytes, and SHA-256 replay checkpoints.</p>
+          <ul>
+            <li>JavaScript + standalone Luau passed</li>
+            <li>600 ticks / replay match / tamper detected</li>
+            <li>Roblox Studio multiplayer validation still required</li>
+          </ul>
+        </div>
+      </div>
+      <nav class="sdk-project-actions" aria-label="Roblox project source and tests">
+        <a href="https://github.com/hulyasmath/zeq-doomgeneric/blob/master/projects/01-roblox-competitive-modes/README.md" target="_blank" rel="noopener noreferrer">PROJECT GUIDE ↗</a>
+        <a href="https://github.com/hulyasmath/zeq-doomgeneric/blob/master/projects/01-roblox-competitive-modes/src/ZeqRoblox.luau" target="_blank" rel="noopener noreferrer">LUAU MODULE ↗</a>
+        <a href="https://github.com/hulyasmath/zeq-doomgeneric/blob/master/projects/01-roblox-competitive-modes/src/ZeqServer.server.luau" target="_blank" rel="noopener noreferrer">SERVER ADAPTER ↗</a>
+        <a href="https://github.com/hulyasmath/zeq-doomgeneric/blob/master/projects/01-roblox-competitive-modes/tests/test_roblox.js" target="_blank" rel="noopener noreferrer">CONFORMANCE TEST ↗</a>
+      </nav>
+      <p class="fine-print">Fourteen projects have scoped passing evidence. Roblox Studio multiplayer, NeoForge, and real Unity/Unreal/Godot runtime validation remain outside those passes. Racing uses the supplied reference adapter; Project 16 is not production anti-cheat certification. Projects 7–13 use deterministic process schedules, arrival permutations, byte chunks, block layouts, or fragmented reads, not sockets. Project 9 is a synthetic two-zone conformance host, not a calibrated physical model or real digital-twin platform integration; physical and measurement accuracy are not claimed. Project 10 is a synthetic four-account, single-asset order book, not an exchange, live-market-data system, production trading platform, execution-quality certification, or profitability claim. Project 11 is a synthetic rectangular design-document host, not a production CAD kernel, automatic conflict merging, authenticated real-time collaboration, manufacturing fitness, engineering certification, or proof of external authorship. Project 12 is a fixed-point audio-control reference, not a DAW/plugin-format integration, audio-device test, hard-real-time deadline certification, band-limited synthesizer, or sound-quality claim. Project 13 is a synthetic particle-cache reference, not a VFX/DCC plugin, renderer, video codec, production interchange format, physical model, or visual-quality certification. Matching hashes do not prove peer honesty, human input, competitive legitimacy, physical accuracy, financial correctness outside the declared model, truthful external authorship, or an uncompromised host.</p>
+    </section>
 
     <div class="sdk-status-grid" aria-label="Implementation status">
       <section><h3>IMPLEMENTED + LOCALLY TESTED</h3><p>Exact C/JavaScript/Python time vectors; real Doom physics/replay; signed evidence and ZEQC3; signed PWAD/PK3 content and sealed parcels; native TCP rollback; pixel, texture, and real-host visual profiles; exact units, scientific solvers, experiments, lifecycle, and the non-Doom chamber.</p></section>
@@ -258,7 +310,7 @@ const milliseconds = Q.convert(threeZeqonds, "ms");
   <div class="ruleset-deploy"><p id="ruleset-deploy-copy">Zeq Physics applies lapse movement, finite impulses, and exact cooldowns.</p><button type="button" id="deploy-ruleset" disabled>APPLY &amp; REDEPLOY</button></div>
   <label class="setting-row"><span><b>LEGACY PHASE DAMAGE</b><small>Enable the approximate arcade +50% phase-hit bonus. It has no effect in Zeq Physics or Vanilla.</small></span><input type="checkbox" id="phase-toggle" checked></label>
   <label class="setting-row"><span><b>CRT SCANLINES</b><small>Display-only overlay; Doom pixels remain unchanged.</small></span><input type="checkbox" id="scan-toggle" checked></label>
-  <label class="setting-row"><span><b>LOCAL SIDECAR LINK</b><small>Mirror telemetry to a local zeq-kernel (ws://127.0.0.1:7770). Optional; the game is fully playable without it. <output id="sidecar-status">offline</output></small></span><input type="checkbox" id="sidecar-toggle"></label>
+  <div class="setting-row"><span><b>MACHINE ROOM LINK</b><small>Real C/WASM movement and engine events are observed by the surrounding Zeq machine and signed into its local history. No IP connector is used.</small></span><output id="machine-room-status">CONNECTING</output></div>
   <label class="setting-slider"><span>MOUSE SENSITIVITY <output id="sensitivity-value">1.0×</output></span><input type="range" id="sensitivity" min="0.4" max="2" step="0.1" value="1"></label>
   <form id="signed-mod-form" class="signed-mod-form">
     <h3>SIGNED PWAD / PK3 · PHASE 5</h3>
@@ -280,12 +332,8 @@ const milliseconds = Q.convert(threeZeqonds, "ms");
 <script src="sdk/zeq-security.js"></script>
 <script src="sdk/zeq-capsule.js"></script>
 <script src="sdk/zeq-content.js"></script>
-<script src="sdk/zq/zeq-browser.js"></script>
-<script src="sdk/zq/zeq-host.js"></script>
-<script src="sdk/zq/zeq-panel.js"></script>
-<script src="sdk/zq/examples/doom/doom-zeq.js"></script>
+<script src="zeq-room.js"></script>
 <script src="zeq.js?v=0.4.0"></script>
-<script src="zeq-machine.js"></script>
 {{{ SCRIPT }}}
 </body>
 </html>
