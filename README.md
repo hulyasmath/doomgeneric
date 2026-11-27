@@ -37,8 +37,10 @@ pixel/resource validation, real-host visual commitments, deterministic bots,
 portable quantities/numerics/experiments/lifecycle, and the non-Doom chamber.
 The final scoped local audit passed at executable source
 `f3b0b06b2ade79af7130c695bee3f8e0fc522eae`; it includes the correction and
-retesting of the impaired-network pending-thinker rollback defect. Current
-preview `56dbada` was saved from the exact tested browser bytes. Browser
+retesting of the impaired-network pending-thinker rollback defect. Saved
+machine-first previews are produced from the exact tested browser bytes, with
+Doom running as a room inside the Zeq machine; a saved preview is not public
+website publication. Browser
 networking, production Internet security, physical two-machine validation,
 external-machine reproduction, plugin execution/sandboxing, physical mobile
 certification, arbitrary third-party engine compatibility, and unconditional
@@ -73,7 +75,9 @@ remote delivery, and certification.
   saved ruleset.
 - **Engine event ledger** — level, combat, firing, impact, explosion, impulse,
   cooldown, ruleset, death, and save/load events leave the engine through a ring
-  buffer and are chained and signed by the browser or sidecar. Verification
+  buffer and are chained by the browser. The surrounding machine independently
+  signs bounded, non-authoritative movement and event observations into its
+  State Observer history. Verification
   proves local chain integrity only, not competitive legitimacy. Detailed impulse
   telemetry is diagnostic and is outside the event hash chain. Replay remains
   `unavailable` until a real headless Doom run reproduces the recorded states.
@@ -152,12 +156,22 @@ remote delivery, and certification.
   compatibility or calibrated physics.
 - **Portable contract observation (reviewed PR #3 proof of concept)** — an
   engine-neutral host layer maps real Doom events into weapon, player, ruleset,
-  level, and save-load contract decisions. The browser's optional ZEQ CONTRACTS
-  panel connects to an owner-configured external machine with a scoped key;
-  the native adapter can audit a completed headless run. Three ruleset identities
+  level, and save-load contract decisions. The native adapter can audit a
+  completed headless run. The browser no longer uses that optional sidecar as
+  its game-to-machine connection. Three ruleset identities
   remain distinct. This is asynchronous observation, not gameplay enforcement:
   refusals do not undo C events, health is damage-derived only, and external-
   machine-backed runs remain unverified in the delivery environment.
+- **Machine-first browser application** — `dist/index.html` is the complete Zeq
+  machine; `dist/game.html` is the real Doom room rendered by its router through
+  a same-origin iframe. Actual C/WASM movement and discrete events travel over
+  the direct room channel and become signed machine history. The Games SDK is a
+  separate machine room. The website splits the machine's original catalogue,
+  page template, engine pack, and hash-authorized runtime into ordered same-origin
+  text assets so each source file remains publishable and auditable. The runtime
+  is unchanged; its downloaded bearer HTML still reconstructs the original
+  self-contained machine without those website assets. Same-origin framing is an
+  integration mechanism, not a secure cross-origin trust boundary.
 - **Browser shell** — scalable viewport, live same-tic conformance panel,
   ruleset/cooldown/impulse diagnostics, pointer-lock mouse aim, resilient keyboard,
   standard-gamepad and analog touch controls, and original MIDI music via bundled
@@ -185,8 +199,12 @@ cd dist && python3 -m http.server 8080
 
 `build-web.sh` runs `make -f Makefile.emscripten` (SDL2/SDL2_mixer ports,
 `--shell-file web/shell.html`, preloaded `doom1.wad` + timidity config + freepats)
-and copies the result plus the browser SDK modules to `dist/`. Every copied
-artifact must be nonempty and match its source byte-for-byte or the build fails.
+and copies the result plus the browser SDK modules to `dist/`. It writes the
+machine as `index.html`, its ordered `machine-*.js` payloads and bootstrap, Doom
+as `game.html`, and the direct room transport as `zeq-room.js`. Every copied
+artifact must be nonempty and match its source byte-for-byte or the build fails. The release manifest separately records the
+compiled C/WASM source commit, current repository HEAD, and browser-source tree
+hash; a browser-only restage must not advance the compiled engine identity.
 
 Regenerate the shared tables/vectors and run all native/reference conformance
 suites with:
@@ -249,10 +267,16 @@ checks. The Phase 6 engine gate launches two actual native engines, verifies exa
 confirmed checkpoint chains for 140 direct tics and 180 delayed/jittered/lossy/
 duplicated tics, requires genuine rollback and resimulation, refuses identity and
 protocol mismatches, and detects deliberate hash corruption in either direction.
-`node tests/test_browser_machine.js` plays the real WASM build through the
-contract panel and HTTP client against a labeled local conformance evaluator,
-audits the resulting records, checks key non-persistence, and verifies mobile
-control layering. It is not an external-machine test.
+`node tests/test_browser_machine.js` plays the real WASM build inside the
+machine, requires real movement/fire to become detailed signed Observer rows,
+checks a row's hash link and signature, rejects wrong-window and malformed
+messages, verifies input release on room exit, exercises the Games SDK room,
+and downloads a real bearer HTML file to verify self-contained export.
+`node tests/test_machine_assets.js` independently reassembles every split payload,
+checks its original hash and CSP authorization, and verifies the export template.
+`node tests/test_browser_workspace.js` visits all 31 rooms and checks desktop
+and mobile routing and layout. These are in-page, browser-local observations,
+not external-machine or cross-origin-isolation tests.
 Build scripts regenerate all large arithmetic vectors from the committed Python
 generators; generated outputs and WAD/build artifacts are not source-controlled.
 
