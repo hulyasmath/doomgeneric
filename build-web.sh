@@ -1,6 +1,12 @@
 #!/bin/sh
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+SDK_ROOT=${ZEQ_SDK_ROOT:-$ROOT}
+if [ ! -f "$SDK_ROOT/docs/zeq-developer-manual-v1.md" ] || [ ! -d "$SDK_ROOT/projects" ]; then
+  echo "Set ZEQ_SDK_ROOT to the complete portable SDK checkout for the on-site manual and project sources." >&2
+  exit 1
+fi
+python3 "$ROOT/build-sdk-docs.py" --sdk-root "$SDK_ROOT"
 CLEAN=1
 if [ "${1:-}" = "--no-clean" ]; then CLEAN=0
 elif [ "$#" -ne 0 ]; then echo "Usage: $0 [--no-clean]" >&2; exit 2; fi
@@ -84,22 +90,26 @@ copy_verified()
 
 # A release directory must not retain files from an older build.
 rm -rf "$ROOT/dist"
-mkdir -p "$ROOT/dist" "$ROOT/dist/sdk" "$ROOT/dist/sdk/zq/examples/doom"
+mkdir -p "$ROOT/dist" "$ROOT/dist/sdk"
 SOURCE_COMMIT=$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || printf '%040d' 0)
+REPOSITORY_HEAD=$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || printf '%040d' 0)
 printf '/* Generated build identity. */\nwindow.ZeqBuildInfo = Object.freeze({ sourceCommit: "%s" });\n' "$SOURCE_COMMIT" > "$ROOT/dist/sdk/zeq-build-info.js.tmp"
 mv -f "$ROOT/dist/sdk/zeq-build-info.js.tmp" "$ROOT/dist/sdk/zeq-build-info.js"
-copy_verified doomgeneric.html "$ROOT/dist/index.html"
+copy_verified doomgeneric.html "$ROOT/dist/game.html"
 copy_verified doomgeneric.js "$ROOT/dist/doomgeneric.js"
 copy_verified doomgeneric.wasm "$ROOT/dist/doomgeneric.wasm"
 copy_verified doomgeneric.data "$ROOT/dist/doomgeneric.data"
 copy_verified "$ROOT/web/zeq.css" "$ROOT/dist/zeq.css"
 copy_verified "$ROOT/web/zeq.js" "$ROOT/dist/zeq.js"
-copy_verified "$ROOT/web/zeq-capsule-worker.js" "$ROOT/dist/zeq-capsule-worker.js"
 copy_verified "$ROOT/web/zeq-machine.js" "$ROOT/dist/zeq-machine.js"
-copy_verified "$ROOT/sdk/zq/zeq-browser.js" "$ROOT/dist/sdk/zq/zeq-browser.js"
-copy_verified "$ROOT/sdk/zq/zeq-host.js" "$ROOT/dist/sdk/zq/zeq-host.js"
-copy_verified "$ROOT/sdk/zq/zeq-panel.js" "$ROOT/dist/sdk/zq/zeq-panel.js"
-copy_verified "$ROOT/sdk/zq/examples/doom/doom-zeq.js" "$ROOT/dist/sdk/zq/examples/doom/doom-zeq.js"
+copy_verified "$ROOT/web/zeq-room.js" "$ROOT/dist/zeq-room.js"
+copy_verified "$ROOT/web/zeq-capsule-worker.js" "$ROOT/dist/zeq-capsule-worker.js"
+copy_verified "$ROOT/web/machine.html" "$ROOT/dist/index.html"
+for machine_asset in machine-bootstrap.js machine-catalogue.js machine-page.js \
+  machine-engine-1.js machine-engine-2.js machine-runtime-1.js machine-runtime-2.js; do
+  copy_verified "$ROOT/web/$machine_asset" "$ROOT/dist/$machine_asset"
+done
+copy_verified "$ROOT/web/sdk.html" "$ROOT/dist/sdk.html"
 copy_verified "$ROOT/sdk/zeq-time-table.js" "$ROOT/dist/sdk/zeq-time-table.js"
 copy_verified "$ROOT/sdk/zeq-physics-table.js" "$ROOT/dist/sdk/zeq-physics-table.js"
 copy_verified "$ROOT/sdk/zeq-game-sdk.js" "$ROOT/dist/sdk/zeq-game-sdk.js"
@@ -107,7 +117,27 @@ copy_verified "$ROOT/sdk/zeq-security.js" "$ROOT/dist/sdk/zeq-security.js"
 copy_verified "$ROOT/sdk/zeq-capsule.js" "$ROOT/dist/sdk/zeq-capsule.js"
 copy_verified "$ROOT/sdk/zeq-content.js" "$ROOT/dist/sdk/zeq-content.js"
 copy_verified "$ROOT/sdk/zeq-pixel.js" "$ROOT/dist/sdk/zeq-pixel.js"
-ROOT="$ROOT" SOURCE_COMMIT="$SOURCE_COMMIT" EMCC_VERSION="$EMCC_VERSION" python3 - <<'PY'
+# The manual's source links resolve to a complete same-origin SDK/test release.
+SDK_ROOT="$SDK_ROOT" DIST="$ROOT/dist" python3 - <<'PY'
+import os
+import shutil
+from pathlib import Path
+source = Path(os.environ["SDK_ROOT"])
+dist = Path(os.environ["DIST"])
+for directory in ("sdk", "projects"):
+    for path in sorted((source / directory).rglob("*")):
+        relative = path.relative_to(source)
+        if not path.is_file() or any(part in {".git", "__pycache__", "node_modules", "build"} for part in relative.parts):
+            continue
+        if path.suffix in {".pyc", ".o", ".out"}:
+            continue
+        destination = dist / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if not destination.exists() or path.read_bytes() != destination.read_bytes():
+            shutil.copyfile(path, destination)
+        assert path.read_bytes() == destination.read_bytes()
+PY
+ROOT="$ROOT" SOURCE_COMMIT="$SOURCE_COMMIT" REPOSITORY_HEAD="$REPOSITORY_HEAD" EMCC_VERSION="$EMCC_VERSION" python3 - <<'PY'
 import hashlib
 import json
 import os
@@ -123,10 +153,29 @@ for path in sorted(p for p in dist.rglob("*") if p.is_file()):
         "bytes": len(data),
         "sha256": hashlib.sha256(data).hexdigest(),
     })
+browser_sources = [
+    root / "build-web.sh", root / "build-sdk-docs.py",
+    root / "web/machine.html", root / "web/machine-bootstrap.js",
+    root / "web/machine-catalogue.js", root / "web/machine-page.js",
+    root / "web/machine-engine-1.js", root / "web/machine-engine-2.js",
+    root / "web/machine-runtime-1.js", root / "web/machine-runtime-2.js",
+    root / "web/shell.html", root / "web/sdk.html", root / "web/zeq.css", root / "web/zeq.js",
+    root / "web/zeq-machine.js", root / "web/zeq-room.js", root / "web/zeq-capsule-worker.js",
+    root / "sdk/zeq-time-table.js", root / "sdk/zeq-physics-table.js",
+    root / "sdk/zeq-game-sdk.js", root / "sdk/zeq-security.js",
+    root / "sdk/zeq-capsule.js", root / "sdk/zeq-content.js", root / "sdk/zeq-pixel.js",
+]
+browser_tree = hashlib.sha256()
+for path in browser_sources:
+    browser_tree.update(path.relative_to(root).as_posix().encode() + b"\0")
+    browser_tree.update(path.read_bytes() + b"\0")
 manifest = {
     "format": "zeq-release-manifest-v1",
     "target": "doomgeneric-browser-wasm",
     "sourceCommit": os.environ["SOURCE_COMMIT"],
+    "sourceCommitScope": "compiled C/WASM engine and generated engine assets",
+    "repositoryHead": os.environ["REPOSITORY_HEAD"],
+    "browserSourceTreeSha256": browser_tree.hexdigest(),
     "toolchain": os.environ["EMCC_VERSION"],
     "artifacts": artifacts,
     "evidenceScope": "build identity and byte inventory only; test and delivery gates are separate",

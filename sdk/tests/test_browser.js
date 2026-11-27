@@ -5,7 +5,7 @@ let chromium;
 try { ({ chromium } = require("playwright")); }
 catch (_) { ({ chromium } = require("/home/kimi/.npm-global/lib/node_modules/playwright")); }
 const PIN = "correct-horse-9";
-const URL = process.env.ZEQ_TEST_URL || "http://127.0.0.1:8765/";
+const URL = process.env.ZEQ_TEST_URL || "http://127.0.0.1:8765/game.html";
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
