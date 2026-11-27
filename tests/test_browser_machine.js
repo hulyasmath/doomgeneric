@@ -39,14 +39,63 @@ async function boot(page) {
       badResponses.push(`${response.status()} ${response.url()}`);
   });
 
+  // Hold the second parent runtime chunk until the real engine is online. A
+  // test-only observer records room events without changing their delivery.
+  // Once the production listener starts, its explicit handshake must produce
+  // a fresh ready event; the old one-shot child cannot satisfy that assertion.
+  let delayedParentRuntime = false;
+  let engineReadyBeforeParentListener = false;
+  let prematureReadyRefused = false;
+  await page.route("**/doomgeneric.wasm", async (route) => {
+    // zeq.js installs its public reannouncement callback before Emscripten has
+    // initialized the engine. Calling it now must not manufacture readiness.
+    await page.waitForFunction(() => {
+      const game = document.getElementById("doom-game-frame")?.contentWindow;
+      const start = game?.document.getElementById("start-button");
+      return typeof game?.ZeqRoomReady === "function" && start?.disabled;
+    }, null, { timeout: 60000 });
+    await page.evaluate(() => {
+      window.__zeqObservedRoomMessages = [];
+      window.addEventListener("message", (event) => {
+        const message = event.data;
+        if (event.origin === location.origin && message?.channel === "zeq-doom-room-v1")
+          window.__zeqObservedRoomMessages.push(message.kind);
+      });
+    });
+    const before = await page.evaluate(() => window.__zeqObservedRoomMessages.filter(kind => kind === "ready").length);
+    await page.evaluate(() => document.getElementById("doom-game-frame").contentWindow.ZeqRoomReady());
+    await page.waitForTimeout(100);
+    const after = await page.evaluate(() => window.__zeqObservedRoomMessages.filter(kind => kind === "ready").length);
+    assert.equal(after, before, "handshake announced ready before WASM initialization");
+    prematureReadyRefused = true;
+    await route.continue();
+  });
+  await page.route("**/machine-runtime-2.js", async (route) => {
+    delayedParentRuntime = true;
+    await page.waitForFunction(() => {
+      const start = document.getElementById("doom-game-frame")?.contentDocument.getElementById("start-button");
+      return start && !start.disabled;
+    }, null, { timeout: 60000 });
+    engineReadyBeforeParentListener = true;
+    await route.continue();
+  });
+
   try {
     const frame = await boot(page);
+    assert.ok(delayedParentRuntime);
+    assert.ok(engineReadyBeforeParentListener);
+    assert.ok(prematureReadyRefused);
+    await page.waitForFunction(() =>
+      window.__zeqObservedRoomMessages.filter(kind => kind === "ready").length >= 2,
+    null, { timeout: 15000 });
+    assert.equal(await page.locator("#doom-link-state").innerText(), "REAL WASM / MACHINE CONNECTED");
     assert.match(page.url(), /\/doom$/);
     assert.equal(await page.locator("#machine-section").count(), 0);
     assert.equal(await page.locator(".workspace-nav").count(), 0);
     assert.equal(await page.locator("#doom-game-frame").getAttribute("src"), "game.html");
 
     const initial = await page.evaluate(() => ZeqDoomRoom.stats());
+    assert.ok(initial.loaded && initial.ready, "valid WASM readiness did not establish a loaded room");
     await frame.locator("#start-button").click();
     const game = page.frames().find((item) => item.url().includes("/game.html"));
     assert.ok(game, "real game frame missing");
@@ -75,7 +124,10 @@ async function boot(page) {
 
     await game.evaluate(() => { if (document.pointerLockElement) document.exitPointerLock(); });
     await game.waitForFunction(() => document.pointerLockElement === null);
-    await game.locator("#pause-button").click();
+    // Pointer-lock release may already have paused the real engine. Do not
+    // toggle that achieved state off again; the unpause path is tested below.
+    if (await game.evaluate(() => ZeqDiagnostics.game().paused) === 0)
+      await game.locator("#pause-button").click();
     await game.waitForFunction(() => ZeqDiagnostics.game().paused === 1);
     await page.locator("#doom-open-observer").click();
     await page.locator('[data-view="state"]').waitFor({ state: "visible" });
@@ -298,6 +350,10 @@ async function boot(page) {
     console.log(JSON.stringify({
       ok: true,
       transport: "direct same-origin game frame to in-page machine",
+      delayedParentRuntime,
+      engineReadyBeforeParentListener,
+      readyReannouncedAfterHandshake: true,
+      prematureReadyRefused,
       realMovement: true,
       realWeaponFire: true,
       signedObserverRows: movementRows.length,
