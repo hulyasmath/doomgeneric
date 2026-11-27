@@ -11,8 +11,10 @@ const TestMachine = require("../sdk/zq/tests/contract-test-machine.js");
   assert.deepEqual(Hook.toEvent({ kind: "engine-event", type: 9, gametic: "35", phase: 123, value: 2 }), { type: 9, gametic: 35, phase: 123, value: 2 });
   assert.deepEqual(Hook.toEvent({ type: 5, tic: 60, phase: 0, value: 30 }), { type: 5, gametic: 60, phase: 0, value: 30 });
   assert.throws(() => Hook.toEvent({ type: "x", gametic: "1", phase: 0, value: 0 }), /not an engine event/);
-  assert.ok(/window\.ZeqHostHook\(\{ type: record\.type, gametic: record\.tic/.test(fs.readFileSync(path.join(__dirname, "..", "web", "zeq.js"), "utf8")));
-  checks += 4;
+  const shell = fs.readFileSync(path.join(__dirname, "..", "web", "zeq.js"), "utf8");
+  assert.ok(/roomSend\("event", \{/.test(shell), "real engine records must reach the direct room transport");
+  assert.ok(!shell.includes("ZeqHostHook"), "obsolete sidecar hook must not remain in gameplay observation");
+  checks += 5;
 
   const root = path.join(__dirname, "..");
   if (!fs.existsSync(path.join(root, "doomgeneric", "doomgeneric-headless")) || !fs.existsSync(path.join(root, "doomgeneric", "doom1.wad"))) {
