@@ -169,8 +169,9 @@ remote delivery, and certification.
   separate machine room. The website splits the machine's original catalogue,
   page template, engine pack, and hash-authorized runtime into ordered same-origin
   text assets so each source file remains publishable and auditable. The runtime
-  is unchanged; its downloaded bearer HTML still reconstructs the original
-  self-contained machine without those website assets. Same-origin framing is an
+  retains the original machine behavior with the declared Doom room handshake;
+  its downloaded bearer HTML still reconstructs a self-contained machine without
+  those website assets. Same-origin framing is an
   integration mechanism, not a secure cross-origin trust boundary.
 - **Browser shell** — scalable viewport, live same-tic conformance panel,
   ruleset/cooldown/impulse diagnostics, pointer-lock mouse aim, resilient keyboard,
@@ -192,19 +193,44 @@ independent simultaneous touches. FULL expands the real viewport and controls.
 ## Building the browser version
 
 ```sh
-# requires Emscripten (emsdk) on PATH
-sh build-web.sh        # builds doomgeneric + shell into dist/
+# requires Emscripten (emsdk) on PATH and the complete SDK checkout
+ZEQ_SDK_ROOT=/path/to/zeq-doomgeneric sh build-web.sh
 cd dist && python3 -m http.server 8080
 ```
 
 `build-web.sh` runs `make -f Makefile.emscripten` (SDL2/SDL2_mixer ports,
 `--shell-file web/shell.html`, preloaded `doom1.wad` + timidity config + freepats)
-and copies the result plus the browser SDK modules to `dist/`. It writes the
-machine as `index.html`, its ordered `machine-*.js` payloads and bootstrap, Doom
-as `game.html`, and the direct room transport as `zeq-room.js`. Every copied
-artifact must be nonempty and match its source byte-for-byte or the build fails. The release manifest separately records the
-compiled C/WASM source commit, current repository HEAD, and browser-source tree
-hash; a browser-only restage must not advance the compiled engine identity.
+and calls `assemble-web-release.py` to copy the result plus the browser SDK
+modules to `dist/`. It writes the machine as `index.html`, its ordered
+`machine-*.js` payloads and bootstrap, Doom as `game.html`, and the direct room
+transport as `zeq-room.js`. Engine and browser entry artifacts must be nonempty;
+every copied artifact must match its source byte-for-byte or the build fails.
+For retained-engine assembly, `doomgeneric.js`, `.wasm`, and `.data` remain
+byte-exact, while `game.html` is rendered from the current `web/shell.html`
+with Emscripten's external loader. An old generated `doomgeneric.html` must not
+overwrite later browser-only room integration.
+The release manifest separately records the compiled C/WASM source commit,
+current repository HEAD, and browser-source tree hash; a browser-only restage
+must not advance the compiled engine identity.
+
+To reproduce a browser release from retained, already verified engine artifacts
+without recompiling, use the identities recorded by that engine's existing
+release evidence—never substitute the current HEAD as the compiled source:
+
+```sh
+python3 assemble-web-release.py \
+  --sdk-root /path/to/zeq-doomgeneric \
+  --engine-dir doomgeneric \
+  --source-commit <actual-compiled-engine-source-commit> \
+  --repository-head "$(git rev-parse HEAD)" \
+  --toolchain "emcc 3.1.64 (verified retained engine artifacts; no recompilation)"
+node tests/test_release_manifests.js
+ZEQ_SDK_ROOT=/path/to/zeq-doomgeneric python3 tests/test_release_assembler.py
+```
+
+The assembler refuses overlapping engine/input and release/output directories.
+Its reproducibility test requires a second assembly to match the complete
+release, including the manifest, byte-for-byte.
 
 Regenerate the shared tables/vectors and run all native/reference conformance
 suites with:
