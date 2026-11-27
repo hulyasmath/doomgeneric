@@ -187,7 +187,7 @@ var Module = {
     $("load-signed-mod").disabled = false;
     applySettings();
     pollExactSnapshot();
-    roomSend("ready", { format: "ZEQ-DOOM-READY-v1", engine: "doomgeneric", runtime: "WebAssembly", tickRate: 35 });
+    announceRoomReady();
   },
   onAbort: (reason) => {
     $("engine-state").innerHTML = "<i></i>ENGINE FAULT";
@@ -681,6 +681,14 @@ function roomSend(kind, payload) {
   try { return window.ZeqRoomLink ? window.ZeqRoomLink.send(kind, payload) : false; }
   catch (_) { return false; }
 }
+function announceRoomReady() {
+  if (!ready) return;
+  roomSend("ready", { format: "ZEQ-DOOM-READY-v1", engine: "doomgeneric", runtime: "WebAssembly", tickRate: 35 });
+}
+// The surrounding machine may explicitly request a fresh announcement after
+// its own late cold start. The guard prevents this handshake from announcing
+// readiness before the real onRuntimeInitialized callback has completed.
+window.ZeqRoomReady = announceRoomReady;
 function flushRoomMovement() {
   roomMovementTimer = 0;
   if (!roomMovementPending) return;
