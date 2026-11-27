@@ -9,7 +9,7 @@ catch (_) { ({ chromium } = require("/home/kimi/.npm-global/lib/node_modules/pla
 const Content = require("../sdk/zeq-content.js");
 const Security = require("../sdk/zeq-security.js");
 
-const URL = process.env.ZEQ_TEST_URL || "http://127.0.0.1:8765/";
+const URL = process.env.ZEQ_TEST_URL || "http://127.0.0.1:8765/game.html";
 const MARKER = "ZEQ5TEST";
 const PAYLOAD = new TextEncoder().encode("ZEQ-VERIFIED-PWAD-BYTES");
 

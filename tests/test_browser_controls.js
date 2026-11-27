@@ -5,7 +5,7 @@ let chromium;
 try { ({ chromium } = require("playwright")); }
 catch (_) { ({ chromium } = require("/home/kimi/.npm-global/lib/node_modules/playwright")); }
 
-const URL = process.env.ZEQ_TEST_URL || "http://127.0.0.1:8765/";
+const URL = process.env.ZEQ_TEST_URL || "http://127.0.0.1:8765/game.html";
 
 function observe(page, errors, badResponses) {
   page.on("pageerror", (error) => errors.push(error.message));
@@ -86,6 +86,26 @@ async function assertReleased(page) {
   await page.locator("#fullscreen-button").click();
   await page.waitForFunction(() => !ZeqDiagnostics.controls().fullscreen && !ZeqDiagnostics.controls().expandedFallback);
   report.desktopFullscreen = true;
+
+  // Disposable conformance PIN only; never print or retain it in the report.
+  const testPin = "Zeq-Test-Only-827!";
+  await page.locator("#save-button").click();
+  await page.locator("#capsule-dialog").waitFor({ state: "visible" });
+  await page.locator("#capsule-pin").fill(testPin);
+  await page.locator("#capsule-confirm").fill(testPin);
+  await page.locator("#capsule-submit").click();
+  await page.locator("#capsule-dialog").waitFor({ state: "hidden", timeout: 120000 });
+  assert.equal(await page.evaluate(() => ZeqDiagnostics.capsuleStored()?.zeqc3), true);
+  assert.equal(await page.evaluate((pin) => Object.values(localStorage).some((value) => value.includes(pin)), testPin), false);
+  await page.reload();
+  await page.waitForFunction(() => !document.getElementById("start-button").disabled, null, { timeout: 60000 });
+  await page.locator("#continue-button").click();
+  await page.locator("#capsule-pin").fill(testPin);
+  await page.locator("#capsule-submit").click();
+  await page.locator("#capsule-dialog").waitFor({ state: "hidden", timeout: 120000 });
+  await page.waitForFunction(() => ZeqDiagnostics.game()?.gamestate === 0 && ZeqDiagnostics.game()?.gametic > 3);
+  assert.equal(await page.locator("#capsule-pin").inputValue(), "");
+  report.zeqc3 = { sealed: true, restored: true, pinCleared: true, pinNotStored: true };
   await desktop.close();
 
   const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
