@@ -39,7 +39,7 @@ const sha256 = value => crypto.createHash("sha256").update(value).digest("base64
 assert.equal(sha256(catalogue), "95QFFgpxE7PrlPm9G1vJodw7kypmvrSh1Em49wRXOhI=");
 assert.equal(sha256(page), "xFEfnhRZOt4SxQs26hucBEMQGsYA253xzSQNUgleXYY=");
 assert.equal(sha256(pack), "AWIk0TMm4UU/asqURWqI14cMktXOgiE2se6vdTjCp9I=");
-assert.equal(sha256(runtime), "1dHNadchqHUxMlVHyghJo34L2bUGO8MPxTJ2b3A4aUs=");
+assert.equal(sha256(runtime), "8A7CIGkV/v1wbj4TdakWvM8t1aUi3KDmQCzF0m2STj8=");
 assert.equal(JSON.parse(catalogue).format, "ZEQ-CATALOGUE-v1");
 assert.equal(JSON.parse(pack).format, "ZEQ-ENGINE-v1");
 assert.ok(JSON.parse(page).includes("14 TESTED / 6 QUEUED"));
