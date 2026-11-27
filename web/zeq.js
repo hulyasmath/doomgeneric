@@ -187,6 +187,7 @@ var Module = {
     $("load-signed-mod").disabled = false;
     applySettings();
     pollExactSnapshot();
+    roomSend("ready", { format: "ZEQ-DOOM-READY-v1", engine: "doomgeneric", runtime: "WebAssembly", tickRate: 35 });
   },
   onAbort: (reason) => {
     $("engine-state").innerHTML = "<i></i>ENGINE FAULT";
@@ -400,18 +401,14 @@ function queueEngineEvent(event) {
     safeSet(LEDGER_KEY, JSON.stringify(ledger));
     updateLedger();
     addEventToStream(record);
-    // Optional contract observation is asynchronous and non-authoritative. It
-    // cannot block play, alter canonical state, or undo an emitted C event.
-    if (typeof window.ZeqHostHook === "function") {
-      try {
-        Promise.resolve(window.ZeqHostHook({ type: record.type, gametic: record.tic, phase: record.phase, value: record.value }))
-          .catch((error) => console.warn("Zeq contract hook failed", error));
-      } catch (error) { console.warn("Zeq contract hook failed", error); }
-    }
-    if (sidecarOn) {
-      const bridge = sidecarBridge();
-      if (bridge) bridge.event({ type: record.type, tic: record.tic, phase: record.phase, value: record.value });
-    }
+    // The surrounding machine receives only this bounded, non-secret record.
+    // It cannot block play, alter canonical state, or undo an emitted C event.
+    roomSend("event", {
+      format: "ZEQ-DOOM-EVENT-v1",
+      name: eventNames[record.type] || `ENGINE EVENT ${record.type}`,
+      type: record.type, tic: record.tic, phase: record.phase, value: record.value,
+      seq: record.seq, hash: record.hash
+    });
     if (record.type === 1) {
       $("phase-flash").classList.add("visible");
       clearTimeout(flashTimer);
@@ -672,33 +669,49 @@ async function loadSignedWad(manifest, wadBytes, trustedKeyId) {
   return loadSignedMod(manifest, wadBytes, trustedKeyId, { pk3: false });
 }
 
-/* --- Optional local sidecar bridge (zeq-game-sdk) ----------------------
- * Mirrors engine telemetry to a user-run zeq-kernel over JSON-RPC/WS.
- * Strictly optional: when disabled or unreachable the game is unchanged. */
-let sidecarOn = false;
-let lastSidecarSnapshot = 0;
-function sidecarBridge() { return window.ZeqSDK ? window.ZeqSDK.bridge : null; }
-function updateSidecarStatus(state) {
-  const el = $("sidecar-status");
-  if (el) el.textContent = state === "online" ? "linked" : state === "connecting" ? "connecting…" : "offline";
+/* --- Direct observation by the surrounding machine room -----------------
+ * Only real C/WASM snapshots and emitted engine records cross this boundary.
+ * Observation is asynchronous, bounded, and never authoritative for gameplay. */
+const ROOM_MOVEMENT_INTERVAL_MS = 600;
+let roomMovementSignature = "";
+let roomMovementPending = null;
+let roomMovementTimer = 0;
+let roomMovementLastSent = -Infinity;
+function roomSend(kind, payload) {
+  try { return window.ZeqRoomLink ? window.ZeqRoomLink.send(kind, payload) : false; }
+  catch (_) { return false; }
 }
-function applySidecar(on) {
-  sidecarOn = on;
-  const bridge = sidecarBridge();
-  if (!bridge) { updateSidecarStatus("offline"); return; }
-  if (on) {
-    bridge.configure({
-      url: "ws://127.0.0.1:7770/zeq",
-      game: "doomgeneric-web",
-      client: "zeq-doom/1.0",
-      onstate: (state) => updateSidecarStatus(state)
-    });
-    bridge.connect();
-  } else {
-    bridge.close();
-    updateSidecarStatus("offline");
-  }
+function flushRoomMovement() {
+  roomMovementTimer = 0;
+  if (!roomMovementPending) return;
+  const record = roomMovementPending;
+  roomMovementPending = null;
+  roomMovementLastSent = performance.now();
+  roomSend("movement", record);
 }
+function observeRoomMovement(exact, game) {
+  if (!started || !exact || !exact.player || !game) return;
+  const p = exact.player;
+  const signature = [p.x, p.y, p.z, p.angle, p.momx, p.momy, p.momz].join(",");
+  if (signature === roomMovementSignature) return;
+  roomMovementSignature = signature;
+  roomMovementPending = {
+    format: "ZEQ-DOOM-MOVE-v1",
+    gametic: exact.gametic,
+    zeqond: exact.zeqond,
+    phase64: exact.phase64,
+    ruleset: exact.ruleset,
+    player: { x: p.x, y: p.y, z: p.z, angle: p.angle, momx: p.momx, momy: p.momy, momz: p.momz },
+    game: { episode: game.episode, map: game.map, health: game.health, gamestate: game.gamestate, paused: game.paused }
+  };
+  const wait = ROOM_MOVEMENT_INTERVAL_MS - (performance.now() - roomMovementLastSent);
+  if (wait <= 0) flushRoomMovement();
+  else if (!roomMovementTimer) roomMovementTimer = setTimeout(flushRoomMovement, wait);
+}
+window.ZeqRoomRelease = () => {
+  releaseAll();
+  if (document.pointerLockElement) document.exitPointerLock();
+};
 
 function drainEvents() {
   if (!ready || !started) return;
@@ -1012,14 +1025,7 @@ function pollSnapshot() {
   $("pause-button").textContent = s.paused ? "RESUME" : "PAUSE";
   const exact = pollExactSnapshot();
   updateCarrierUI(s, exact);
-  if (sidecarOn) {
-    const bridge = sidecarBridge();
-    const now = performance.now();
-    if (bridge && bridge.state === "online" && now - lastSidecarSnapshot >= 500) {
-      lastSidecarSnapshot = now;
-      bridge.snapshot(s);
-    }
-  }
+  if (exact) observeRoomMovement(exact, s);
   drainCapture();
   drainCanonical();
   drainVisual();
@@ -1030,15 +1036,12 @@ function applySettings() {
   try { settings = JSON.parse(safeGet(SETTINGS_KEY) || "{}"); } catch (_) {}
   const phase = settings.phase !== false;
   const scan = settings.scan !== false;
-  const sidecar = settings.sidecar === true;
   const ruleset = Number.isInteger(settings.ruleset) && settings.ruleset >= 0 && settings.ruleset <= 2 ? settings.ruleset : 1;
   muted = settings.muted === true;
   sensitivity = Number(settings.sensitivity) || 1;
   $("ruleset-select").value = String(ruleset);
   $("phase-toggle").checked = phase;
   $("scan-toggle").checked = scan;
-  $("sidecar-toggle").checked = sidecar;
-  if (sidecar !== sidecarOn) applySidecar(sidecar);
   $("sensitivity").value = String(sensitivity);
   $("sensitivity-value").textContent = `${sensitivity.toFixed(1)}×`;
   document.querySelector(".screen-scan").classList.toggle("off", !scan);
@@ -1051,7 +1054,7 @@ function applySettings() {
   }
 }
 function persistSettings() {
-  safeSet(SETTINGS_KEY, JSON.stringify({ ruleset: Number($("ruleset-select").value), phase: $("phase-toggle").checked, scan: $("scan-toggle").checked, sidecar: $("sidecar-toggle").checked, muted, sensitivity }));
+  safeSet(SETTINGS_KEY, JSON.stringify({ ruleset: Number($("ruleset-select").value), phase: $("phase-toggle").checked, scan: $("scan-toggle").checked, muted, sensitivity }));
   applySettings();
   if (ready) pollExactSnapshot();
 }
@@ -1069,6 +1072,10 @@ function startDeployment() {
   resetCapture(true);
   resetCanonical(35);
   ledger = [];
+  roomMovementSignature = "";
+  roomMovementPending = null;
+  clearTimeout(roomMovementTimer);
+  roomMovementTimer = 0;
   runDescriptorPromise = null;
   proofSessionId = randomHex(16);
   proofSignerPromise = null;
@@ -1147,7 +1154,6 @@ document.querySelectorAll("dialog").forEach((dialog) => {
 $("ruleset-select").addEventListener("change", persistSettings);
 $("phase-toggle").addEventListener("change", persistSettings);
 $("scan-toggle").addEventListener("change", persistSettings);
-$("sidecar-toggle").addEventListener("change", persistSettings);
 $("sensitivity").addEventListener("input", () => { sensitivity = Number($("sensitivity").value); $("sensitivity-value").textContent = `${sensitivity.toFixed(1)}×`; });
 $("sensitivity").addEventListener("change", persistSettings);
 $("signed-mod-form").addEventListener("submit", async (event) => {
